@@ -1,13 +1,16 @@
 <!DOCTYPE html>
 <!--
-  Einkaufszettel – Stufe 1 (Grundgerüst)
+  Einkaufszettel
 
   Änderungsliste
+  v0.2 · 04.09.2026 · Firebase angeschlossen: Anmeldung mit Haushaltspasswort,
+                      artikelweiser Abgleich von Zettel und Artikeln, Kopie im
+                      Gerät für schlechten Empfang, Verbindungsanzeige,
+                      "Sperren". Noch offen: Lernen (Stufe 3),
+                      Einstellungen (Stufe 4).
   v0.1 · 04.09.2026 · Erste Fassung: Suchfeld, Vorschlagskacheln, Zettel mit
                       Gruppen, Menge und Einheit, Mengenblatt, eigene Artikel
                       anlegen, Einkauf abschließen. Daten nur im Gerät.
-                      Noch nicht enthalten: Firebase (Stufe 2), Lernen (Stufe 3),
-                      Einstellungen und Zugangsschutz (Stufe 4).
 -->
 <html lang="de">
 <head>
@@ -40,6 +43,22 @@ body{
 button,input{font:inherit;color:inherit}
 button{background:none;border:0;padding:0;cursor:pointer}
 :focus-visible{outline:2px solid var(--akzent);outline-offset:2px}
+[hidden]{display:none !important}
+
+/* ---------- Schloss ---------- */
+.schloss{
+  position:fixed;inset:0;z-index:80;background:var(--papier);
+  display:flex;flex-direction:column;justify-content:center;
+  padding:24px 22px calc(24px + var(--sicher-unten));
+}
+.schloss h1{margin:0 0 6px;font-size:30px;letter-spacing:-.6px;font-weight:650}
+.schloss p{margin:0 0 24px;color:var(--matt);font-size:15px;max-width:34em}
+.schloss input{
+  width:100%;min-height:52px;padding:0 14px;margin-bottom:12px;
+  border:1px solid var(--linie);border-radius:var(--rand);background:var(--karte);
+}
+.schloss .fehler{color:#9A3D2B;font-size:15px;margin:0 0 12px;min-height:20px}
+.schlossfuss{margin-top:20px;font-size:12px;color:var(--matt)}
 
 /* ---------- Kopf ---------- */
 .kopf{
@@ -48,7 +67,10 @@ button{background:none;border:0;padding:0;cursor:pointer}
 }
 .kopfzeile{display:flex;align-items:baseline;justify-content:space-between;gap:12px}
 .kopfzeile h1{margin:0;font-size:26px;letter-spacing:-.5px;font-weight:650}
-.fassung{font-size:12px;color:var(--matt);white-space:nowrap}
+.kopfrechts{display:flex;align-items:center;gap:10px;flex:none}
+.fassung{font-size:13px;color:var(--matt);white-space:nowrap}
+.funk{width:9px;height:9px;border-radius:50%;background:var(--akzent);flex:none}
+.funk[data-aus="1"]{background:#C8862F}
 .reiter{display:flex;gap:6px;margin:12px 0 0;padding:4px;background:#E4E7E0;border-radius:var(--rand)}
 .reiter button{
   flex:1;min-height:40px;border-radius:10px;font-size:15px;font-weight:550;color:var(--matt);
@@ -57,6 +79,10 @@ button{background:none;border:0;padding:0;cursor:pointer}
 .zaehler{display:inline-block;min-width:20px;margin-left:6px;padding:0 6px;border-radius:10px;
   background:var(--akzent);color:#fff;font-size:12px;line-height:19px;font-weight:600;vertical-align:1px}
 .reiter button[aria-selected="false"] .zaehler{background:#C3C9BF;color:#fff}
+.streifen{
+  margin:10px 0 0;padding:9px 12px;border-radius:12px;
+  background:#F6E9D2;color:#6B4A15;font-size:14px;
+}
 
 .blatt{padding:0 16px}
 .suchzeile{position:sticky;top:calc(var(--sicher-oben) + 108px);z-index:15;background:var(--papier);padding:12px 0 8px}
@@ -168,44 +194,60 @@ button{background:none;border:0;padding:0;cursor:pointer}
 @media (min-width:700px){
   .kopf,.blatt,.fussleiste{max-width:680px;margin-left:auto;margin-right:auto}
   .sheet{max-width:680px;margin:0 auto;border-radius:20px 20px 0 0}
+  .schloss{max-width:520px;margin:0 auto}
 }
 </style>
 </head>
 <body>
 
-<header class="kopf">
-  <div class="kopfzeile">
-    <h1>Einkaufszettel</h1>
-    <span class="fassung">v0.1 · 04.09.2026</span>
-  </div>
-  <div class="reiter" role="tablist">
-    <button id="rVor" role="tab" aria-selected="true">Vorschläge</button>
-    <button id="rZet" role="tab" aria-selected="false">Zettel<span class="zaehler" id="zettelZahl">0</span></button>
-  </div>
-</header>
+<!-- Schlossbildschirm -->
+<div class="schloss" id="schloss">
+  <h1>Einkaufszettel</h1>
+  <p>Haushaltspasswort eingeben. Das Gerät bleibt danach angemeldet, bis du es sperrst.</p>
+  <input id="passwort" type="password" inputmode="text" autocomplete="current-password"
+         placeholder="Passwort" aria-label="Haushaltspasswort">
+  <p class="fehler" id="schlossFehler"></p>
+  <button class="hauptknopf" id="anmelden">Anmelden</button>
+  <p class="schlossfuss">v0.2 · 04.09.2026</p>
+</div>
 
-<main class="blatt">
-  <section id="ansichtVor">
-    <div class="suchzeile">
-      <div class="suchhuelle">
-        <input id="suche" class="suchfeld" type="search" inputmode="search" autocomplete="off"
-               placeholder="Suchen oder neu anlegen" aria-label="Artikel suchen">
-        <button class="loeschen" id="sucheLeeren" hidden aria-label="Suche leeren">✕</button>
-      </div>
+<div id="app" hidden>
+  <header class="kopf">
+    <div class="kopfzeile">
+      <h1>Einkaufszettel</h1>
+      <span class="kopfrechts">
+        <span class="funk" id="funk" title="Verbindung"></span>
+        <button class="fassung" id="sperren">Sperren</button>
+      </span>
     </div>
-    <div class="kacheln" id="kacheln"></div>
-  </section>
+    <div class="reiter" role="tablist">
+      <button id="rVor" role="tab" aria-selected="true">Vorschläge</button>
+      <button id="rZet" role="tab" aria-selected="false">Zettel<span class="zaehler" id="zettelZahl">0</span></button>
+    </div>
+    <div class="streifen" id="streifen" hidden></div>
+  </header>
 
-  <section id="ansichtZet" hidden></section>
-</main>
+  <main class="blatt">
+    <section id="ansichtVor">
+      <div class="suchzeile">
+        <div class="suchhuelle">
+          <input id="suche" class="suchfeld" type="search" inputmode="search" autocomplete="off"
+                 placeholder="Suchen oder neu anlegen" aria-label="Artikel suchen">
+          <button class="loeschen" id="sucheLeeren" hidden aria-label="Suche leeren">✕</button>
+        </div>
+      </div>
+      <div class="kacheln" id="kacheln"></div>
+    </section>
+    <section id="ansichtZet" hidden></section>
+  </main>
 
-<div class="fussleiste" id="fussleiste" hidden>
-  <button class="hauptknopf" id="abschliessen" disabled>Einkauf abschließen</button>
+  <div class="fussleiste" id="fussleiste" hidden>
+    <button class="hauptknopf" id="abschliessen" disabled>Einkauf abschließen</button>
+  </div>
 </div>
 
 <div class="schleier" id="schleier"></div>
 
-<!-- Mengenblatt -->
 <div class="sheet" id="sheetMenge" role="dialog" aria-modal="true" aria-labelledby="mengeTitel">
   <h3 id="mengeTitel">Artikel</h3>
   <p class="unterzeile" id="mengeUnter"></p>
@@ -222,7 +264,6 @@ button{background:none;border:0;padding:0;cursor:pointer}
   </div>
 </div>
 
-<!-- Anlegen-Blatt -->
 <div class="sheet" id="sheetNeu" role="dialog" aria-modal="true" aria-labelledby="neuTitel">
   <h3 id="neuTitel">Neuer Artikel</h3>
   <p class="unterzeile">Gruppe und Einheit merkt sich die App für das nächste Mal.</p>
@@ -238,7 +279,6 @@ button{background:none;border:0;padding:0;cursor:pointer}
   </div>
 </div>
 
-<!-- Frageblatt -->
 <div class="sheet" id="sheetFrage" role="dialog" aria-modal="true" aria-labelledby="frageTitel">
   <h3 id="frageTitel">Einkauf abschließen?</h3>
   <p class="unterzeile" id="frageUnter"></p>
@@ -250,8 +290,21 @@ button{background:none;border:0;padding:0;cursor:pointer}
 
 <div class="hinweis" id="hinweis" role="status"></div>
 
-<script>
+<script type="module">
 "use strict";
+
+/* ============ Firebase-Zugang (öffentlich gedacht, der Schutz liegt am Passwort) ============ */
+const FB = {
+  apiKey: "AIzaSyC2CyPhqXfd4G4PyAavapXGEghzitJ0n80",
+  authDomain: "iel-85e14.firebaseapp.com",
+  databaseURL: "https://iel-85e14-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId: "iel-85e14",
+  storageBucket: "iel-85e14.firebasestorage.app",
+  messagingSenderId: "788014023671",
+  appId: "1:788014023671:web:f01e847c9729dd063b24f2"
+};
+const KONTO = "haushalt@einkauf.local";
+const SDK = "https://www.gstatic.com/firebasejs/10.12.2/";
 
 /* ============ Gruppen (Reihenfolge = Weg durch den Laden) ============ */
 const GRUPPEN = [
@@ -326,67 +379,78 @@ hd:[["Spülmittel","Flasche",2],["Spülmaschinentabs","Pkg",2],["Klarspüler","F
 };
 
 /* ============ Zustand ============ */
-const SCHLUESSEL = "einkauf.stand";
-let Z = { artikel:{}, zettel:[], historie:[] };
-let speicherGeht = true;
+const SP_SPIEGEL = "einkauf.spiegel";
+const SP_ANGEMELDET = "einkauf.angemeldet";
+
+let UEBER = {};        // Änderungen und eigene Artikel aus der Datenbank
+let ZETTEL = {};       // der Zettel aus der Datenbank
+let ARTIKEL = {};      // Grundstock + Überlagerung, daraus wird gezeichnet
+let nurLesen = false;  // ohne Verbindung beim Start
+let F = null;          // Firebase-Werkzeuge
 
 function kennung(name){
   return name.toLowerCase()
     .replace(/ä/g,"ae").replace(/ö/g,"oe").replace(/ü/g,"ue").replace(/ß/g,"ss")
     .replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"");
 }
+function standardMenge(e){ return (e==="g"||e==="ml") ? 500 : 1; }
 
-function grundstockAufbauen(){
+function grundstock(){
   const a = {};
   GRUPPEN.forEach(g=>{
     (KATALOG[g.id]||[]).forEach(([name,einheit,gewicht])=>{
       a[kennung(name)] = {n:name, g:g.id, e:einheit, w:gewicht, m:standardMenge(einheit),
-                          kaeufe:0, zuletzt:0, eigen:false};
+                          kaeufe:0, zuletzt:0, letzte:[], eigen:false};
     });
   });
   return a;
 }
-function standardMenge(e){
-  if(e==="g") return 500;
-  if(e==="ml") return 500;
-  return 1;
+function artikelMischen(){
+  ARTIKEL = grundstock();
+  Object.keys(UEBER).forEach(id=>{
+    const q = UEBER[id] || {};
+    if(ARTIKEL[id]){
+      ["e","m","kaeufe","zuletzt","letzte"].forEach(k=>{ if(q[k]!==undefined) ARTIKEL[id][k]=q[k]; });
+    }else if(q.n && q.g){
+      ARTIKEL[id] = {n:q.n, g:q.g, e:q.e||"Stk", w:q.w||2, m:q.m||standardMenge(q.e||"Stk"),
+                     kaeufe:q.kaeufe||0, zuletzt:q.zuletzt||0, letzte:q.letzte||[], eigen:true};
+    }
+    if(ARTIKEL[id] && !Array.isArray(ARTIKEL[id].letzte)) ARTIKEL[id].letzte = [];
+  });
 }
 
-function laden(){
-  let roh = null;
-  try{ roh = localStorage.getItem(SCHLUESSEL); }catch(f){ speicherGeht = false; }
-  Z.artikel = grundstockAufbauen();
-  if(!roh) return;
-  try{
-    const alt = JSON.parse(roh);
-    // Grundstock bleibt führend, gemerkte Werte werden daraufgelegt
-    Object.keys(alt.artikel||{}).forEach(id=>{
-      const q = alt.artikel[id];
-      if(Z.artikel[id]) Object.assign(Z.artikel[id], {m:q.m, e:q.e, kaeufe:q.kaeufe||0, zuletzt:q.zuletzt||0});
-      else if(q.eigen) Z.artikel[id] = q;
-    });
-    Z.zettel = (alt.zettel||[]).filter(p=>Z.artikel[p.id]);
-    Z.historie = alt.historie||[];
-  }catch(f){ /* beschädigter Stand wird verworfen */ }
+/* ---- Kopie im Gerät, für schlechten Empfang ---- */
+function spiegelSchreiben(){
+  try{ localStorage.setItem(SP_SPIEGEL, JSON.stringify({u:UEBER, z:ZETTEL})); }catch(f){}
 }
-function sichern(){
-  if(!speicherGeht) return;
-  try{ localStorage.setItem(SCHLUESSEL, JSON.stringify(Z)); }
-  catch(f){ speicherGeht = false; }
+function spiegelLesen(){
+  try{
+    const roh = localStorage.getItem(SP_SPIEGEL);
+    if(!roh) return false;
+    const d = JSON.parse(roh);
+    UEBER = d.u||{}; ZETTEL = d.z||{};
+    return true;
+  }catch(f){ return false; }
+}
+function merker(wert){
+  try{ wert ? localStorage.setItem(SP_ANGEMELDET,"1") : localStorage.removeItem(SP_ANGEMELDET); }catch(f){}
+}
+function merkerGesetzt(){
+  try{ return localStorage.getItem(SP_ANGEMELDET)==="1"; }catch(f){ return false; }
 }
 
 /* ============ Hilfen ============ */
 const $ = id => document.getElementById(id);
 const gruppeVon = id => GRUPPEN.find(g=>g.id===id) || GRUPPEN[GRUPPEN.length-1];
-const aufZettel = id => Z.zettel.find(p=>p.id===id);
-const offeneZahl = () => Z.zettel.filter(p=>!p.ab).length;
+const zettelListe = () => Object.keys(ZETTEL).filter(id=>ARTIKEL[id]);
+const offeneZahl = () => zettelListe().filter(id=>!ZETTEL[id].ab).length;
+const abgehakte = () => zettelListe().filter(id=>ZETTEL[id].ab);
 
 function mengeText(menge, einheit){
   const m = Math.round(menge*100)/100;
   const t = (Math.abs(m-Math.round(m))<0.001) ? String(Math.round(m)) : String(m).replace(".",",");
   return einheit==="Stk" ? t+"×" : t+" "+einheit;
 }
-
 let hinweisUhr = null;
 function melden(text){
   const h = $("hinweis");
@@ -394,11 +458,25 @@ function melden(text){
   clearTimeout(hinweisUhr);
   hinweisUhr = setTimeout(()=>{ h.dataset.auf = "0"; }, 1600);
 }
+function streifen(text){
+  const s = $("streifen");
+  if(text){ s.textContent = text; s.hidden = false; } else s.hidden = true;
+}
 
-/* ============ Punktzahl (Stufe 1: fest; Lernen folgt in Stufe 3) ============ */
+/* ============ Schreiben in die Datenbank ============ */
+function schreibsperre(){
+  if(nurLesen || !F){ melden("Ohne Verbindung nicht änderbar."); return true; }
+  return false;
+}
+function pfad(p){ return F.ref(F.db, p); }
+async function setzen(p, wert){ try{ await F.set(pfad(p), wert); }catch(f){ melden("Konnte nicht gespeichert werden."); } }
+async function aendern(p, teil){ try{ await F.update(pfad(p), teil); }catch(f){ melden("Konnte nicht gespeichert werden."); } }
+async function entfernen(p){ try{ await F.remove(pfad(p)); }catch(f){ melden("Konnte nicht gespeichert werden."); } }
+
+/* ============ Punktzahl (feste Grundgewichte; das Lernen folgt in Stufe 3) ============ */
 function punkte(id){
-  const a = Z.artikel[id];
-  let p = a.w*10 + Math.min(a.kaeufe,12)*4;
+  const a = ARTIKEL[id];
+  let p = a.w*10 + Math.min(a.kaeufe||0,12)*4;
   if(a.zuletzt){
     const tage = (Date.now()-a.zuletzt)/86400000;
     p += Math.max(0, 14-tage);
@@ -424,12 +502,13 @@ function reiterSetzen(neu){
 }
 
 function zeichnen(){
+  artikelMischen();
   $("zettelZahl").textContent = offeneZahl();
   if(ansicht==="vor") kachelnZeichnen(); else zettelZeichnen();
-  const abgehakt = Z.zettel.filter(p=>p.ab).length;
+  const fertig = abgehakte().length;
   const k = $("abschliessen");
-  k.disabled = abgehakt===0;
-  k.textContent = abgehakt ? "Einkauf abschließen ("+abgehakt+")" : "Einkauf abschließen";
+  k.disabled = fertig===0 || nurLesen;
+  k.textContent = fertig ? "Einkauf abschließen ("+fertig+")" : "Einkauf abschließen";
 }
 
 function kachelnZeichnen(){
@@ -437,9 +516,9 @@ function kachelnZeichnen(){
   const such = feld.toLowerCase();
   $("sucheLeeren").hidden = !feld;
 
-  let ids = Object.keys(Z.artikel);
-  if(such) ids = ids.filter(id=>Z.artikel[id].n.toLowerCase().includes(such));
-  ids.sort((a,b)=>punkte(b)-punkte(a) || Z.artikel[a].n.localeCompare(Z.artikel[b].n,"de"));
+  let ids = Object.keys(ARTIKEL);
+  if(such) ids = ids.filter(id=>ARTIKEL[id].n.toLowerCase().includes(such));
+  ids.sort((a,b)=>punkte(b)-punkte(a) || ARTIKEL[a].n.localeCompare(ARTIKEL[b].n,"de"));
 
   const gekuerzt = (!such && !alleZeigen && ids.length>OBERE);
   const sichtbar = gekuerzt ? ids.slice(0,OBERE) : ids;
@@ -447,23 +526,29 @@ function kachelnZeichnen(){
   const kasten = $("kacheln");
   kasten.innerHTML = "";
 
-  const treffer = feld && ids.some(id=>Z.artikel[id].n.toLowerCase()===such);
+  const treffer = feld && ids.some(id=>ARTIKEL[id].n.toLowerCase()===such);
   if(feld && !treffer){
     const b = document.createElement("button");
     b.className = "kachel neu";
-    b.innerHTML = '<span>„'+feld.replace(/</g,"&lt;")+'" anlegen</span>';
-    b.onclick = ()=>neuOeffnen(feld);
+    b.textContent = "„"+feld+"“ anlegen";
+    b.onclick = ()=>{ if(!schreibsperre()) neuOeffnen(feld); };
     kasten.appendChild(b);
   }
 
   sichtbar.forEach(id=>{
-    const a = Z.artikel[id], p = aufZettel(id);
+    const a = ARTIKEL[id], p = ZETTEL[id];
     const b = document.createElement("button");
     b.className = "kachel";
     if(p) b.dataset.drauf = "1";
-    b.innerHTML = '<span class="punkt" style="background:'+gruppeVon(a.g).farbe+'"></span>'+
-                  '<span>'+a.n+'</span>'+
-                  (p ? '<span class="menge">'+mengeText(p.menge,p.einheit)+'</span>' : '');
+    const punkt = document.createElement("span");
+    punkt.className = "punkt"; punkt.style.background = gruppeVon(a.g).farbe;
+    const name = document.createElement("span"); name.textContent = a.n;
+    b.appendChild(punkt); b.appendChild(name);
+    if(p){
+      const m = document.createElement("span");
+      m.className = "menge"; m.textContent = mengeText(p.menge,p.einheit);
+      b.appendChild(m);
+    }
     b.onclick = ()=> p ? mengeOeffnen(id) : aufDenZettel(id);
     kasten.appendChild(b);
   });
@@ -486,7 +571,8 @@ function kachelnZeichnen(){
 function zettelZeichnen(){
   const ziel = $("ansichtZet");
   ziel.innerHTML = "";
-  if(!Z.zettel.length){
+  const ids = zettelListe();
+  if(!ids.length){
     const l = document.createElement("div");
     l.className = "leer";
     l.textContent = "Der Zettel ist leer. Unter „Vorschläge“ tippst du an, was mit soll.";
@@ -494,34 +580,39 @@ function zettelZeichnen(){
     return;
   }
   GRUPPEN.forEach(g=>{
-    const posten = Z.zettel
-      .filter(p=>Z.artikel[p.id].g===g.id)
-      .sort((a,b)=>Z.artikel[a.id].n.localeCompare(Z.artikel[b.id].n,"de"));
+    const posten = ids.filter(id=>ARTIKEL[id].g===g.id)
+                      .sort((a,b)=>ARTIKEL[a].n.localeCompare(ARTIKEL[b].n,"de"));
     if(!posten.length) return;
 
     const kasten = document.createElement("section");
     kasten.className = "gruppe";
-    kasten.innerHTML = '<h2><span class="punkt" style="background:'+g.farbe+'"></span>'+g.name+'</h2>';
+    const h = document.createElement("h2");
+    const punkt = document.createElement("span");
+    punkt.className = "punkt"; punkt.style.background = g.farbe;
+    h.appendChild(punkt); h.appendChild(document.createTextNode(g.name));
+    kasten.appendChild(h);
+
     const liste = document.createElement("div");
     liste.className = "posten";
-
-    posten.forEach(p=>{
-      const a = Z.artikel[p.id];
+    posten.forEach(id=>{
+      const a = ARTIKEL[id], p = ZETTEL[id];
       const zeile = document.createElement("div");
       zeile.className = "zeile";
       zeile.dataset.ab = p.ab ? "1" : "0";
 
       const haken = document.createElement("button");
       haken.className = "haken";
-      haken.innerHTML = '<span class="kasten"></span><span class="name">'+a.n+'</span>';
+      const kast = document.createElement("span"); kast.className = "kasten";
+      const name = document.createElement("span"); name.className = "name"; name.textContent = a.n;
+      haken.appendChild(kast); haken.appendChild(name);
       haken.setAttribute("aria-pressed", !!p.ab);
-      haken.onclick = ()=>{ p.ab = !p.ab; sichern(); zeichnen(); };
+      haken.onclick = ()=>{ if(!schreibsperre()) aendern("zettel/"+id, {ab: !p.ab}); };
 
       const menge = document.createElement("button");
       menge.className = "mengenknopf";
       menge.textContent = mengeText(p.menge,p.einheit);
       menge.setAttribute("aria-label","Menge ändern");
-      menge.onclick = ()=>mengeOeffnen(p.id);
+      menge.onclick = ()=>mengeOeffnen(id);
 
       zeile.appendChild(haken); zeile.appendChild(menge);
       liste.appendChild(zeile);
@@ -533,20 +624,16 @@ function zettelZeichnen(){
 
 /* ============ Zettel füllen ============ */
 function aufDenZettel(id){
-  const a = Z.artikel[id];
-  Z.zettel.push({id:id, menge:a.m, einheit:a.e, ab:false});
-  sichern(); zeichnen();
+  if(schreibsperre()) return;
+  const a = ARTIKEL[id];
+  setzen("zettel/"+id, {menge:a.m, einheit:a.e, ab:false, t:Date.now()});
   melden(a.n+", "+mengeText(a.m,a.e)+" notiert");
 }
 
 /* ============ Blätter ============ */
-let offenesBlatt = null, mengeId = null, mengeEinheit = null, neuName = "", neuGruppe = null, neuEinheit = null;
+let offenesBlatt = null, mengeId = null, mengeEinheit = null, neuGruppe = null, neuEinheit = null;
 
-function blattOeffnen(el){
-  offenesBlatt = el;
-  $("schleier").dataset.auf = "1";
-  el.dataset.auf = "1";
-}
+function blattOeffnen(el){ offenesBlatt = el; $("schleier").dataset.auf = "1"; el.dataset.auf = "1"; }
 function blattSchliessen(){
   if(offenesBlatt) offenesBlatt.dataset.auf = "0";
   $("schleier").dataset.auf = "0";
@@ -554,10 +641,10 @@ function blattSchliessen(){
 }
 $("schleier").onclick = blattSchliessen;
 
-/* --- Menge --- */
 function mengeOeffnen(id){
+  if(schreibsperre()) return;
   mengeId = id;
-  const a = Z.artikel[id], p = aufZettel(id);
+  const a = ARTIKEL[id], p = ZETTEL[id];
   mengeEinheit = p ? p.einheit : a.e;
   $("mengeTitel").textContent = a.n;
   $("mengeUnter").textContent = gruppeVon(a.g).name + (p ? "" : " · noch nicht auf dem Zettel");
@@ -580,8 +667,7 @@ function einheitenZeichnen(kasten, gewaehlt, beiWahl){
   });
 }
 function mengeLesen(){
-  const roh = ($("mengeFeld").value||"").replace(",",".");
-  const w = parseFloat(roh);
+  const w = parseFloat((($("mengeFeld").value)||"").replace(",","."));
   return (isFinite(w) && w>0) ? w : 1;
 }
 function mengeSchreiben(w){ $("mengeFeld").value = String(Math.round(w*100)/100).replace(".",","); }
@@ -589,27 +675,29 @@ function schritt(){ return (mengeEinheit==="g"||mengeEinheit==="ml") ? 100 : (me
 $("mengePlus").onclick = ()=>mengeSchreiben(mengeLesen()+schritt());
 $("mengeMinus").onclick = ()=>mengeSchreiben(Math.max(schritt(), mengeLesen()-schritt()));
 $("mengeOk").onclick = ()=>{
-  const a = Z.artikel[mengeId], p = aufZettel(mengeId), w = mengeLesen();
-  a.m = w; a.e = mengeEinheit;                 // Vorschlag fürs nächste Mal
-  if(p){ p.menge = w; p.einheit = mengeEinheit; }
-  else { Z.zettel.push({id:mengeId, menge:w, einheit:mengeEinheit, ab:false}); }
-  sichern(); blattSchliessen(); zeichnen();
+  const w = mengeLesen(), p = ZETTEL[mengeId];
+  aendern("artikel/"+mengeId, {m:w, e:mengeEinheit});     // Vorschlag fürs nächste Mal
+  if(p) aendern("zettel/"+mengeId, {menge:w, einheit:mengeEinheit});
+  else  setzen("zettel/"+mengeId, {menge:w, einheit:mengeEinheit, ab:false, t:Date.now()});
+  blattSchliessen();
 };
 $("mengeWeg").onclick = ()=>{
-  Z.zettel = Z.zettel.filter(p=>p.id!==mengeId);
-  sichern(); blattSchliessen(); zeichnen();
-  melden(Z.artikel[mengeId].n+" vom Zettel");
+  const name = ARTIKEL[mengeId].n;
+  entfernen("zettel/"+mengeId);
+  blattSchliessen();
+  melden(name+" vom Zettel");
 };
 
-/* --- Neuer Artikel --- */
 function neuOeffnen(name){
-  neuName = name; neuGruppe = null; neuEinheit = "Stk";
+  neuGruppe = null; neuEinheit = "Stk";
   $("neuName").value = name;
   const kasten = $("neuGruppen");
   kasten.innerHTML = "";
   GRUPPEN.forEach(g=>{
     const b = document.createElement("button");
-    b.innerHTML = '<span class="punkt" style="display:inline-block;width:8px;height:8px;border-radius:50%;background:'+g.farbe+';margin-right:6px"></span>'+g.name;
+    const punkt = document.createElement("span");
+    punkt.style.cssText = "display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;background:"+g.farbe;
+    b.appendChild(punkt); b.appendChild(document.createTextNode(g.name));
     b.setAttribute("aria-pressed","false");
     b.onclick = ()=>{
       neuGruppe = g.id;
@@ -626,37 +714,44 @@ $("neuOk").onclick = ()=>{
   if(!name){ melden("Der Name fehlt noch."); return; }
   if(!neuGruppe){ melden("Bitte eine Gruppe wählen."); return; }
   const id = kennung(name);
-  if(Z.artikel[id]){ melden(name+" gibt es schon."); }
-  else Z.artikel[id] = {n:name, g:neuGruppe, e:neuEinheit, w:2, m:standardMenge(neuEinheit),
-                        kaeufe:0, zuletzt:0, eigen:true};
-  if(!aufZettel(id)) Z.zettel.push({id:id, menge:Z.artikel[id].m, einheit:Z.artikel[id].e, ab:false});
+  const schon = !!ARTIKEL[id];
+  if(!schon){
+    setzen("artikel/"+id, {n:name, g:neuGruppe, e:neuEinheit, w:2, m:standardMenge(neuEinheit),
+                           kaeufe:0, zuletzt:0, eigen:true});
+  }
+  const menge = schon ? ARTIKEL[id].m : standardMenge(neuEinheit);
+  const einheit = schon ? ARTIKEL[id].e : neuEinheit;
+  if(!ZETTEL[id]) setzen("zettel/"+id, {menge:menge, einheit:einheit, ab:false, t:Date.now()});
   $("suche").value = ""; alleZeigen = false;
-  sichern(); blattSchliessen(); zeichnen();
-  melden(name+" angelegt und notiert");
+  blattSchliessen();
+  melden(schon ? name+" gab es schon – notiert" : name+" angelegt und notiert");
 };
 
 /* --- Einkauf abschließen --- */
 $("abschliessen").onclick = ()=>{
-  const fertig = Z.zettel.filter(p=>p.ab);
-  const offen = Z.zettel.length - fertig.length;
-  $("frageUnter").textContent = fertig.length+" abgehakt"+
-    (offen ? ", "+offen+" bleiben stehen." : ".")+" Abgehaktes wird als Kauf vermerkt.";
+  if(schreibsperre()) return;
+  const fertig = abgehakte().length;
+  const offen = zettelListe().length - fertig;
+  $("frageUnter").textContent = fertig+" abgehakt"+(offen ? ", "+offen+" bleiben stehen." : ".")+
+                                " Abgehaktes wird als Kauf vermerkt.";
   blattOeffnen($("sheetFrage"));
 };
 $("frageNein").onclick = blattSchliessen;
-$("frageJa").onclick = ()=>{
+$("frageJa").onclick = async ()=>{
   const jetzt = Date.now();
-  const gekauft = Z.zettel.filter(p=>p.ab);
-  gekauft.forEach(p=>{
-    const a = Z.artikel[p.id];
-    a.kaeufe = (a.kaeufe||0)+1;
-    a.zuletzt = jetzt;
-    Z.historie.push({id:p.id, menge:p.menge, einheit:p.einheit, t:jetzt});
+  const fertig = abgehakte();
+  const stapel = {};
+  fertig.forEach(id=>{
+    const a = ARTIKEL[id];
+    const letzte = (a.letzte||[]).concat(jetzt).slice(-12);   // Grundlage fürs Lernen in Stufe 3
+    stapel["artikel/"+id+"/kaeufe"]  = (a.kaeufe||0)+1;
+    stapel["artikel/"+id+"/zuletzt"] = jetzt;
+    stapel["artikel/"+id+"/letzte"]  = letzte;
+    stapel["zettel/"+id] = null;
   });
-  if(Z.historie.length>2000) Z.historie = Z.historie.slice(-2000);
-  Z.zettel = Z.zettel.filter(p=>!p.ab);
-  sichern(); blattSchliessen(); zeichnen();
-  melden(gekauft.length+" Artikel eingekauft");
+  blattSchliessen();
+  try{ await F.update(F.ref(F.db), stapel); melden(fertig.length+" Artikel eingekauft"); }
+  catch(f){ melden("Konnte nicht gespeichert werden."); }
 };
 
 /* ============ Bedienung ============ */
@@ -667,9 +762,108 @@ $("suche").addEventListener("keydown", e=>{ if(e.key==="Enter") e.target.blur();
 $("sucheLeeren").onclick = ()=>{ $("suche").value=""; alleZeigen=false; kachelnZeichnen(); $("suche").focus(); };
 document.addEventListener("keydown", e=>{ if(e.key==="Escape" && offenesBlatt) blattSchliessen(); });
 
-laden();
-zeichnen();
-if(!speicherGeht) melden("Vorschau ohne Speicher – Eingaben gehen beim Neuladen verloren.");
+/* ============ Anmeldung und Abgleich ============ */
+function fehlerText(code){
+  if(code==="auth/invalid-credential" || code==="auth/wrong-password" || code==="auth/invalid-login-credentials")
+    return "Passwort stimmt nicht.";
+  if(code==="auth/too-many-requests") return "Zu viele Versuche. Kurz warten, dann noch einmal.";
+  if(code==="auth/network-request-failed") return "Keine Verbindung zum Netz.";
+  if(code==="auth/user-disabled") return "Dieses Konto ist gesperrt.";
+  return "Anmeldung nicht möglich ("+code+").";
+}
+function appZeigen(){
+  $("schloss").hidden = true;
+  $("app").hidden = false;
+  reiterSetzen("vor");
+}
+function schlossZeigen(){
+  $("app").hidden = true;
+  $("schloss").hidden = false;
+  $("passwort").value = "";
+}
+
+let lauscht = false;
+function lauschen(dbMod, db){
+  if(lauscht) return;
+  lauscht = true;
+
+  dbMod.onValue(dbMod.ref(db,"artikel"), s=>{
+    UEBER = s.val() || {};
+    spiegelSchreiben(); zeichnen();
+  }, f=>{ streifen("Die Datenbank antwortet nicht: "+(f.message||"")); });
+
+  dbMod.onValue(dbMod.ref(db,"zettel"), s=>{
+    ZETTEL = s.val() || {};
+    spiegelSchreiben(); zeichnen();
+  });
+
+  dbMod.onValue(dbMod.ref(db,".info/connected"), s=>{
+    const da = s.val()===true;
+    $("funk").dataset.aus = da ? "0" : "1";
+    streifen(da ? "" : "Keine Verbindung – Änderungen werden nachgeholt, sobald das Netz wieder da ist.");
+  });
+}
+
+async function start(){
+  let mod;
+  try{
+    mod = await Promise.all([
+      import(SDK+"firebase-app.js"),
+      import(SDK+"firebase-auth.js"),
+      import(SDK+"firebase-database.js")
+    ]);
+  }catch(f){
+    nurLesen = true;
+    if(merkerGesetzt() && spiegelLesen()){
+      appZeigen();
+      streifen("Ohne Verbindung. Du siehst den zuletzt bekannten Stand, Änderungen sind gerade nicht möglich.");
+      $("funk").dataset.aus = "1";
+    }else{
+      $("schlossFehler").textContent = "Keine Verbindung. Beim ersten Start auf einem Gerät ist Netz nötig.";
+    }
+    return;
+  }
+
+  const [appMod, authMod, dbMod] = mod;
+  const app = appMod.initializeApp(FB);
+  const auth = authMod.getAuth(app);
+  const db = dbMod.getDatabase(app);
+  F = {db, ref:dbMod.ref, set:dbMod.set, update:dbMod.update, remove:dbMod.remove};
+
+  try{ await authMod.setPersistence(auth, authMod.browserLocalPersistence); }catch(f){}
+
+  $("anmelden").onclick = async ()=>{
+    const pw = $("passwort").value;
+    if(!pw){ $("schlossFehler").textContent = "Bitte das Passwort eingeben."; return; }
+    $("anmelden").disabled = true;
+    $("schlossFehler").textContent = "";
+    try{ await authMod.signInWithEmailAndPassword(auth, KONTO, pw); }
+    catch(f){ $("schlossFehler").textContent = fehlerText(f.code||""); }
+    $("anmelden").disabled = false;
+  };
+  $("passwort").addEventListener("keydown", e=>{ if(e.key==="Enter") $("anmelden").click(); });
+
+  $("sperren").onclick = async ()=>{
+    merker(false);
+    try{ localStorage.removeItem(SP_SPIEGEL); }catch(f){}
+    UEBER = {}; ZETTEL = {};
+    try{ await authMod.signOut(auth); }catch(f){}
+    location.reload();
+  };
+
+  authMod.onAuthStateChanged(auth, nutzer=>{
+    if(nutzer){
+      merker(true);
+      spiegelLesen();      // erst der letzte bekannte Stand, gleich darauf die echten Daten
+      appZeigen();
+      lauschen(dbMod, db);
+    }else{
+      schlossZeigen();
+    }
+  });
+}
+
+start();
 </script>
 </body>
 </html>
