@@ -3,6 +3,17 @@
   Einkaufszettel
 
   Änderungsliste
+  v0.4 · 05.09.2026 · Saison: gleitendes Fenster von ±3 Wochen um das heutige
+                      Datum, Saisonangaben ab Werk im Grundstock, Dämpfung der
+                      Fälligkeit außerhalb der Saison, Ausblenden mit Knopf zum
+                      Zeigen. Verlauf jetzt bis 100 Käufe statt 12. Neue Artikel:
+                      Rhabarber, Zwetschgen, Pfifferlinge, Grillfleisch,
+                      Lebkuchen, Spekulatius, Christstollen, Glühwein, Grillkohle.
+  v0.3 · 05.09.2026 · Lernen eingeschaltet: Häufigkeit, Fälligkeit (Median der
+                      Abstände, ab 3 Käufen), Wochentag; das Grundgewicht
+                      verliert nach vier Käufen seinen Einfluss. Fällige Artikel
+                      mit feiner Umrandung. Kachelreihenfolge steht fest,
+                      solange die Ansicht offen ist. Rhythmus im Mengenblatt.
   v0.2 · 04.09.2026 · Firebase angeschlossen: Anmeldung mit Haushaltspasswort,
                       artikelweiser Abgleich von Zettel und Artikeln, Kopie im
                       Gerät für schlechten Empfang, Verbindungsanzeige,
@@ -103,7 +114,8 @@ button{background:none;border:0;padding:0;cursor:pointer}
   font-size:15px;font-weight:500;
 }
 .kachel .punkt{width:8px;height:8px;border-radius:50%;flex:none}
-.kachel[data-drauf="1"]{background:var(--akzent-hell);border-color:#B6D5C3;color:#1D4F38}
+.kachel[data-faellig="1"]{border-color:var(--akzent);box-shadow:inset 0 0 0 1px var(--akzent)}
+.kachel[data-drauf="1"]{background:var(--akzent-hell);border-color:#B6D5C3;color:#1D4F38;box-shadow:none}
 .kachel .menge{font-size:13px;font-weight:600;color:var(--akzent);white-space:nowrap}
 .kachel.neu{background:var(--karte);border-style:dashed;color:var(--akzent);border-color:#A9C7B6}
 .mehr{width:100%;min-height:44px;margin-top:4px;color:var(--akzent);font-size:15px;font-weight:550}
@@ -208,7 +220,7 @@ button{background:none;border:0;padding:0;cursor:pointer}
          placeholder="Passwort" aria-label="Haushaltspasswort">
   <p class="fehler" id="schlossFehler"></p>
   <button class="hauptknopf" id="anmelden">Anmelden</button>
-  <p class="schlossfuss">v0.2 · 04.09.2026</p>
+  <p class="schlossfuss">v0.4 · 05.09.2026</p>
 </div>
 
 <div id="app" hidden>
@@ -322,23 +334,24 @@ const EINHEITEN = ["Stk","g","kg","ml","l","Pkg","Flasche","Dose","Glas","Bund"]
 
 /* ============ Grundstock: [Name, Einheit, Grundgewicht 1–3] ============ */
 const KATALOG = {
-og:[["Äpfel","kg",3],["Bananen","Stk",3],["Birnen","Stk",1],["Orangen","kg",1],["Zitronen","Stk",2],
-    ["Mandarinen","kg",1],["Weintrauben","g",1],["Erdbeeren","g",1],["Heidelbeeren","g",1],["Kiwi","Stk",1],
-    ["Ananas","Stk",1],["Melone","Stk",1],["Pfirsiche","Stk",1],["Pflaumen","g",1],["Avocado","Stk",2],
+og:[["Äpfel","kg",3],["Bananen","Stk",3],["Birnen","Stk",1],["Orangen","kg",1,[11,3]],["Zitronen","Stk",2],
+    ["Mandarinen","kg",1,[11,1]],["Weintrauben","g",1,[8,10]],["Erdbeeren","g",1,[5,7]],["Heidelbeeren","g",1,[6,8]],["Kiwi","Stk",1],
+    ["Ananas","Stk",1],["Melone","Stk",1,[6,9]],["Pfirsiche","Stk",1,[6,9]],["Pflaumen","g",1,[8,10]],["Avocado","Stk",2],
     ["Tomaten","g",3],["Cherrytomaten","g",2],["Gurke","Stk",3],["Paprika","Stk",3],["Zucchini","Stk",2],
     ["Aubergine","Stk",1],["Karotten","kg",3],["Kartoffeln","kg",3],["Süßkartoffeln","kg",1],
     ["Zwiebeln","kg",3],["Knoblauch","Stk",2],["Lauch","Stk",1],["Sellerie","Stk",1],["Brokkoli","Stk",2],
-    ["Blumenkohl","Stk",1],["Champignons","g",2],["Kopfsalat","Stk",2],["Feldsalat","g",1],["Rucola","g",1],
-    ["Blattspinat","g",1],["Kohlrabi","Stk",1],["Weißkohl","Stk",1],["Rotkohl","Stk",1],["Rosenkohl","g",1],
+    ["Blumenkohl","Stk",1],["Champignons","g",2],["Kopfsalat","Stk",2],["Feldsalat","g",1,[10,3]],["Rucola","g",1],
+    ["Blattspinat","g",1],["Kohlrabi","Stk",1],["Weißkohl","Stk",1],["Rotkohl","Stk",1,[10,2]],["Rosenkohl","g",1,[10,2]],
     ["Radieschen","Bund",1],["Ingwer","Stk",2],["Petersilie","Bund",1],["Schnittlauch","Bund",1],
-    ["Basilikum","Stk",1],["Frühlingszwiebeln","Bund",1],["Spargel","kg",1],["Kürbis","Stk",1],["Mais","Stk",1]],
+    ["Basilikum","Stk",1],["Frühlingszwiebeln","Bund",1],["Spargel","kg",1,[4,6]],["Kürbis","Stk",1,[9,11]],["Mais","Stk",1,[8,10]],
+    ["Rhabarber","kg",1,[4,6]],["Zwetschgen","kg",1,[8,10]],["Pfifferlinge","g",1,[7,9]]],
 bw:[["Brot","Stk",3],["Vollkornbrot","Stk",2],["Toastbrot","Pkg",2],["Brötchen","Stk",3],["Baguette","Stk",2],
     ["Laugenstangen","Stk",1],["Croissants","Stk",1],["Knäckebrot","Pkg",1],["Zwieback","Pkg",1],
     ["Kuchen","Stk",1],["Brezeln","Stk",1],["Semmelbrösel","Pkg",1]],
 fw:[["Hackfleisch","g",3],["Rinderhack","g",1],["Hähnchenbrust","g",2],["Hähnchenschenkel","g",1],
     ["Schnitzel","g",2],["Gulasch","g",1],["Steak","g",1],["Bratwurst","Stk",2],["Wiener Würstchen","Pkg",2],
     ["Salami","g",2],["Schinken","g",2],["Kochschinken","g",2],["Aufschnitt","g",2],["Leberwurst","g",1],
-    ["Mettwurst","g",1],["Bacon","Pkg",1],["Speck","g",1],["Frikadellen","Stk",1]],
+    ["Mettwurst","g",1],["Bacon","Pkg",1],["Speck","g",1],["Frikadellen","Stk",1],["Grillfleisch","g",1,[5,8]]],
 km:[["Milch","l",3],["H-Milch","l",2],["Butter","Stk",3],["Margarine","Stk",1],["Joghurt","Stk",3],
     ["Naturjoghurt","Stk",2],["Quark","Stk",2],["Schmand","Stk",1],["Saure Sahne","Stk",1],["Sahne","Stk",2],
     ["Crème fraîche","Stk",1],["Frischkäse","Stk",2],["Gouda","g",2],["Emmentaler","g",1],["Mozzarella","Stk",2],
@@ -346,7 +359,7 @@ km:[["Milch","l",3],["H-Milch","l",2],["Butter","Stk",3],["Margarine","Stk",1],[
     ["Hüttenkäse","Stk",1],["Eier","Stk",3],["Buttermilch","l",1],["Kefir","l",1],["Pudding","Stk",1],
     ["Skyr","Stk",1],["Hafermilch","l",1]],
 tk:[["Pizza","Stk",2],["Pommes","Pkg",2],["Fischstäbchen","Pkg",1],["Gemüse (TK)","Pkg",2],["Erbsen (TK)","Pkg",1],
-    ["Blattspinat (TK)","Pkg",1],["Rahmspinat","Pkg",1],["Beeren (TK)","Pkg",1],["Eis","Pkg",2],
+    ["Blattspinat (TK)","Pkg",1],["Rahmspinat","Pkg",1],["Beeren (TK)","Pkg",1],["Eis","Pkg",2,[4,9]],
     ["Baguette (TK)","Stk",1],["Lachs (TK)","Pkg",1],["Garnelen","Pkg",1],["Kroketten","Pkg",1],
     ["Backfisch","Pkg",1],["Brötchen (TK)","Pkg",1]],
 vr:[["Nudeln","Pkg",3],["Spaghetti","Pkg",2],["Reis","Pkg",2],["Kartoffelpüree","Pkg",1],["Mehl","Pkg",2],
@@ -362,20 +375,21 @@ vr:[["Nudeln","Pkg",3],["Spaghetti","Pkg",2],["Reis","Pkg",2],["Kartoffelpüree"
     ["Gnocchi","Pkg",1],["Couscous","Pkg",1],["Kokosmilch","Dose",1]],
 ss:[["Schokolade","Stk",2],["Kekse","Pkg",2],["Gummibärchen","Pkg",1],["Chips","Pkg",2],["Salzstangen","Pkg",1],
     ["Erdnüsse","Pkg",1],["Studentenfutter","Pkg",1],["Müsliriegel","Pkg",1],["Popcorn","Pkg",1],
-    ["Waffeln","Pkg",1],["Bonbons","Pkg",1],["Nüsse","Pkg",1]],
+    ["Waffeln","Pkg",1],["Bonbons","Pkg",1],["Nüsse","Pkg",1],["Lebkuchen","Pkg",1,[11,12]],["Spekulatius","Pkg",1,[11,12]],
+    ["Christstollen","Stk",1,[11,12]]],
 gt:[["Wasser","Pkg",3],["Sprudelwasser","Pkg",2],["Stilles Wasser","Pkg",2],["Apfelsaft","Flasche",2],
     ["Orangensaft","Flasche",2],["Traubensaft","Flasche",1],["Multivitaminsaft","Flasche",1],
     ["Cola","Pkg",2],["Limonade","Pkg",1],["Spezi","Pkg",1],["Eistee","Flasche",1],["Bier","Pkg",2],
     ["Alkoholfreies Bier","Pkg",1],["Radler","Pkg",1],["Rotwein","Flasche",1],["Weißwein","Flasche",1],
-    ["Sekt","Flasche",1],["Tonic Water","Flasche",1]],
+    ["Sekt","Flasche",1],["Tonic Water","Flasche",1],["Glühwein","Flasche",1,[11,12]]],
 hd:[["Spülmittel","Flasche",2],["Spülmaschinentabs","Pkg",2],["Klarspüler","Flasche",1],["Waschmittel","Pkg",2],
     ["Weichspüler","Flasche",1],["Allzweckreiniger","Flasche",1],["WC-Reiniger","Flasche",1],
     ["Glasreiniger","Flasche",1],["Müllbeutel","Pkg",2],["Küchenrolle","Pkg",3],["Toilettenpapier","Pkg",3],
     ["Taschentücher","Pkg",2],["Servietten","Pkg",1],["Alufolie","Stk",1],["Frischhaltefolie","Stk",1],
     ["Backpapier","Stk",1],["Spülschwämme","Pkg",1],["Zahnpasta","Stk",2],["Zahnbürste","Stk",1],
     ["Duschgel","Flasche",2],["Shampoo","Flasche",2],["Seife","Stk",1],["Deo","Stk",2],["Rasierklingen","Pkg",1],
-    ["Handcreme","Stk",1],["Sonnencreme","Stk",1],["Batterien","Pkg",1],["Katzenfutter","Pkg",1],
-    ["Hundefutter","Pkg",1]]
+    ["Handcreme","Stk",1],["Sonnencreme","Stk",1,[5,8]],["Batterien","Pkg",1],["Katzenfutter","Pkg",1],
+    ["Hundefutter","Pkg",1],["Grillkohle","Pkg",1,[5,8]]]
 };
 
 /* ============ Zustand ============ */
@@ -398,9 +412,9 @@ function standardMenge(e){ return (e==="g"||e==="ml") ? 500 : 1; }
 function grundstock(){
   const a = {};
   GRUPPEN.forEach(g=>{
-    (KATALOG[g.id]||[]).forEach(([name,einheit,gewicht])=>{
+    (KATALOG[g.id]||[]).forEach(([name,einheit,gewicht,saison])=>{
       a[kennung(name)] = {n:name, g:g.id, e:einheit, w:gewicht, m:standardMenge(einheit),
-                          kaeufe:0, zuletzt:0, letzte:[], eigen:false};
+                          saison:saison||null, kaeufe:0, zuletzt:0, letzte:[], eigen:false};
     });
   });
   return a;
@@ -413,7 +427,8 @@ function artikelMischen(){
       ["e","m","kaeufe","zuletzt","letzte"].forEach(k=>{ if(q[k]!==undefined) ARTIKEL[id][k]=q[k]; });
     }else if(q.n && q.g){
       ARTIKEL[id] = {n:q.n, g:q.g, e:q.e||"Stk", w:q.w||2, m:q.m||standardMenge(q.e||"Stk"),
-                     kaeufe:q.kaeufe||0, zuletzt:q.zuletzt||0, letzte:q.letzte||[], eigen:true};
+                     kaeufe:q.kaeufe||0, zuletzt:q.zuletzt||0, letzte:q.letzte||[],
+                     angelegt:q.angelegt||0, eigen:true};
     }
     if(ARTIKEL[id] && !Array.isArray(ARTIKEL[id].letzte)) ARTIKEL[id].letzte = [];
   });
@@ -473,25 +488,183 @@ async function setzen(p, wert){ try{ await F.set(pfad(p), wert); }catch(f){ meld
 async function aendern(p, teil){ try{ await F.update(pfad(p), teil); }catch(f){ melden("Konnte nicht gespeichert werden."); } }
 async function entfernen(p){ try{ await F.remove(pfad(p)); }catch(f){ melden("Konnte nicht gespeichert werden."); } }
 
-/* ============ Punktzahl (feste Grundgewichte; das Lernen folgt in Stufe 3) ============ */
+/* ============ Das Lernen ============
+   Vier Größen ergeben die Reihenfolge der Kacheln:
+   Häufigkeit, Fälligkeit (Median der Abstände), Wochentag, Grundgewicht.
+   Das Grundgewicht verliert seinen Einfluss, sobald echte Käufe vorliegen. */
+const TAG = 86400000;
+const MIN_KAEUFE = 3;      // ab so vielen Käufen zählt der Rhythmus
+const MAX_ABSTAND = 120;   // Tage; darüber ist es kein Rhythmus mehr
+
+function abstaende(letzte){
+  const t = (letzte||[]).slice().sort((a,b)=>a-b);
+  const tage = [];
+  for(let i=1;i<t.length;i++){
+    const d = (t[i]-t[i-1])/TAG;
+    if(d>=0.5 && d<=MAX_ABSTAND) tage.push(d);   // unter 12 h: derselbe Einkauf, zweimal abgeschlossen
+  }
+  return tage;
+}
+function median(werte){
+  if(!werte.length) return 0;
+  const s = werte.slice().sort((a,b)=>a-b), m = s.length>>1;
+  return s.length%2 ? s[m] : (s[m-1]+s[m])/2;
+}
+/* Rhythmus eines Artikels: mittlerer Abstand in Tagen, 0 wenn noch nicht ablesbar */
+function rhythmus(a){
+  const kaeufe = (a.letzte||[]).length;
+  if(kaeufe < MIN_KAEUFE) return 0;
+  return median(abstaende(a.letzte));
+}
+/* Fälligkeit: verstrichene Zeit im Verhältnis zum eigenen Rhythmus */
+function faelligkeit(a){
+  const med = rhythmus(a);
+  if(!med || !a.zuletzt) return 0;
+  return ((Date.now()-a.zuletzt)/TAG) / med;
+}
+function istFaellig(id){
+  const a = ARTIKEL[id];
+  return faelligkeit(a) >= 0.85 && saison(a) >= 0.6;
+}
+
+/* Wochentag: nur wenn sich die Käufe wirklich auf einen Tag häufen */
+function wochentagZuschlag(a){
+  const t = a.letzte||[];
+  if(t.length < 4) return 0;
+  const heute = new Date().getDay();
+  const treffer = t.filter(z=>new Date(z).getDay()===heute).length;
+  const anteil = treffer/t.length;
+  if(anteil >= 0.5)  return 12;
+  if(anteil >= 0.34) return 6;
+  return 0;
+}
+
+/* ============ Saison ============
+   Erdbeeren im Dezember dürfen nicht dadurch nach oben klettern, dass sie im Juni
+   alle fünf Tage gekauft wurden. Zwei Quellen: die Angabe aus dem Grundstock und
+   der eigene Verlauf. Die Werksangabe verblasst, sobald genug eigene Käufe da sind. */
+const FENSTER = 21;   // Tage vor und nach dem heutigen Datum
+
+function jahrestag(z){
+  const d = new Date(z);
+  return Math.floor((d - new Date(d.getFullYear(),0,0))/TAG);
+}
+function jahresAbstand(a,b){
+  const d = Math.abs(jahrestag(a)-jahrestag(b));
+  return Math.min(d, 365-d);
+}
+function monatDrin(von,bis,m){ return von<=bis ? (m>=von && m<=bis) : (m>=von || m<=bis); }
+
+function saisonAbWerk(a){
+  if(!a.saison) return 1;                       // ganzjährig
+  const [von,bis] = a.saison;
+  const heute = new Date(), m = heute.getMonth()+1, tag = heute.getDate();
+  if(monatDrin(von,bis,m)) return 1.7;
+  const vorher = m===1?12:m-1, nachher = m===12?1:m+1;
+  const anlauf  = monatDrin(von,bis,nachher) && tag>15;   // Saison beginnt im nächsten Monat
+  const ausklang= monatDrin(von,bis,vorher)  && tag<=15;  // Saison war im letzten Monat
+  return (anlauf||ausklang) ? 0.9 : 0.12;
+}
+function saisonGelernt(a){
+  const t = a.letzte||[];
+  if(t.length < 8) return 0;                    // darunter ist nichts abzulesen
+  // Der Verlauf muss ein rundes Jahr abdecken, sonst sieht jeder Artikel im
+  // ersten Winter aus wie ein Sommerartikel: die Kaufliste reicht dort noch
+  // gar nicht bis in den Dezember zurück.
+  const spanne = (Math.max.apply(null,t) - Math.min.apply(null,t))/TAG;
+  if(spanne < 300) return 0;
+  const jetzt = Date.now();
+  const drin = t.filter(z=>jahresAbstand(z,jetzt) <= FENSTER).length;
+  const erwartet = t.length * (2*FENSTER+1)/365;
+  if(!erwartet) return 0;
+  const boden = t.length>=15 ? 0.1 : 0.4;       // bei dünnem Verlauf nicht zu streng urteilen
+  return Math.max(boden, Math.min(2.5, drin/erwartet));
+}
+function saison(a){
+  const werk = saisonAbWerk(a), gelernt = saisonGelernt(a);
+  if(!gelernt) return werk;
+  const anteil = Math.min(((a.letzte||[]).length-7)/13, 1);   // ab 8 Käufen, ganz ab 20
+  return werk*(1-anteil) + gelernt*anteil;
+}
+/* Ausblenden nur bei klarer Lage: Werksangabe sagt nein und der eigene Verlauf
+   widerspricht nicht – oder der eigene Verlauf ist eindeutig genug. */
+function ausserSaison(a){
+  const gelernt = saisonGelernt(a);              // 0 heißt: noch kein Urteil möglich
+  if(saisonAbWerk(a) <= 0.15 && !(gelernt > 1)) return true;
+  return gelernt > 0 && gelernt < 0.3 && (a.letzte||[]).length >= 15;
+}
+
 function punkte(id){
   const a = ARTIKEL[id];
-  let p = a.w*10 + Math.min(a.kaeufe||0,12)*4;
-  if(a.zuletzt){
-    const tage = (Date.now()-a.zuletzt)/86400000;
-    p += Math.max(0, 14-tage);
+  const kaeufe = a.kaeufe||0;
+  const s = saison(a);
+  let p = 0;
+
+  // Häufigkeit, gedeckelt – sonst steht Milch irgendwann uneinholbar oben
+  p += Math.min(kaeufe,10)*2.8;
+
+  // Fälligkeit, außerhalb der Saison gedämpft
+  const f = faelligkeit(a);
+  if(f){
+    let fp = (f >= 1) ? 38 + Math.min(8, (f-1)*8) : (f >= 0.4 ? 38*(f-0.4)/0.6 : 0);
+    p += fp * Math.min(1, s);
+  }else{
+    // noch kein Rhythmus ablesbar
+    p += Math.min(kaeufe,2)*8;
+    if(a.eigen && !kaeufe) p += 20;
+    if(a.zuletzt && (Date.now()-a.zuletzt)/TAG < 2) p -= 12;   // gerade erst gekauft
   }
-  if(a.eigen) p += 6;
+
+  p += wochentagZuschlag(a);
+  p += (s-1)*12;                                   // Zuschlag in der Saison, Abschlag daneben
+
+  // Grundgewicht aus dem Grundstock, verblasst nach vier Käufen
+  p += a.w*10 * (1 - Math.min(kaeufe,4)/4);
+
   return p;
+}
+
+const MONATE = ["Januar","Februar","März","April","Mai","Juni","Juli",
+                "August","September","Oktober","November","Dezember"];
+/* Klartext für das Mengenblatt */
+function rhythmusText(a){
+  const med = rhythmus(a);
+  const teile = [];
+  if(a.saison) teile.push("Saison "+MONATE[a.saison[0]-1]+"–"+MONATE[a.saison[1]-1]);
+  if(med) teile.push(med < 1.5 ? "fast täglich" : "etwa alle "+Math.round(med)+" Tage");
+  if(a.zuletzt){
+    const tage = Math.floor((Date.now()-a.zuletzt)/TAG);
+    teile.push(tage<=0 ? "zuletzt heute" : (tage===1 ? "zuletzt gestern" : "zuletzt vor "+tage+" Tagen"));
+  }
+  if(ausserSaison(a)) teile.push("gerade außer Saison");
+  return teile.join(" · ");
 }
 
 /* ============ Ansichten ============ */
 let ansicht = "vor";
 let alleZeigen = false;
+let reihenfolge = null;      // steht fest, solange die Ansicht offen ist
+let saisonZeigen = false;    // Artikel außer Saison einblenden
 const OBERE = 36;
+
+function sortiert(ids){
+  return ids.sort((a,b)=>punkte(b)-punkte(a) || ARTIKEL[a].n.localeCompare(ARTIKEL[b].n,"de"));
+}
+/* Neu gerechnet wird beim Öffnen der Ansicht, beim Suchen und nach einem Einkauf.
+   Dazwischen bleiben die Kacheln stehen – sonst wandert eine unter dem Finger weg. */
+function reihenfolgeVergessen(){ reihenfolge = null; }
+function geordnet(){
+  const alle = Object.keys(ARTIKEL);
+  if(!reihenfolge){ reihenfolge = sortiert(alle); return reihenfolge; }
+  const bekannt = reihenfolge.filter(id=>ARTIKEL[id]);
+  const dazu = alle.filter(id=>bekannt.indexOf(id)<0);
+  reihenfolge = dazu.length ? bekannt.concat(sortiert(dazu)) : bekannt;
+  return reihenfolge;
+}
 
 function reiterSetzen(neu){
   ansicht = neu;
+  if(neu==="vor"){ reihenfolgeVergessen(); saisonZeigen = false; }
   $("rVor").setAttribute("aria-selected", neu==="vor");
   $("rZet").setAttribute("aria-selected", neu==="zet");
   $("ansichtVor").hidden = neu!=="vor";
@@ -516,9 +689,16 @@ function kachelnZeichnen(){
   const such = feld.toLowerCase();
   $("sucheLeeren").hidden = !feld;
 
-  let ids = Object.keys(ARTIKEL);
-  if(such) ids = ids.filter(id=>ARTIKEL[id].n.toLowerCase().includes(such));
-  ids.sort((a,b)=>punkte(b)-punkte(a) || ARTIKEL[a].n.localeCompare(ARTIKEL[b].n,"de"));
+  let ids, ausgeblendet = 0;
+  if(such){
+    ids = sortiert(Object.keys(ARTIKEL).filter(id=>ARTIKEL[id].n.toLowerCase().includes(such)));
+  }else{
+    ids = geordnet().filter(id=>{
+      if(ZETTEL[id] || saisonZeigen) return true;
+      if(ausserSaison(ARTIKEL[id])){ ausgeblendet++; return false; }
+      return true;
+    });
+  }
 
   const gekuerzt = (!such && !alleZeigen && ids.length>OBERE);
   const sichtbar = gekuerzt ? ids.slice(0,OBERE) : ids;
@@ -540,6 +720,7 @@ function kachelnZeichnen(){
     const b = document.createElement("button");
     b.className = "kachel";
     if(p) b.dataset.drauf = "1";
+    else if(istFaellig(id)) b.dataset.faellig = "1";
     const punkt = document.createElement("span");
     punkt.className = "punkt"; punkt.style.background = gruppeVon(a.g).farbe;
     const name = document.createElement("span"); name.textContent = a.n;
@@ -564,6 +745,14 @@ function kachelnZeichnen(){
     b.className = "mehr";
     b.textContent = "Alle "+ids.length+" Artikel zeigen";
     b.onclick = ()=>{ alleZeigen = true; kachelnZeichnen(); };
+    kasten.appendChild(b);
+  }
+  if(ausgeblendet){
+    const b = document.createElement("button");
+    b.className = "mehr";
+    b.textContent = ausgeblendet===1 ? "1 Artikel außer Saison zeigen"
+                                     : ausgeblendet+" Artikel außer Saison zeigen";
+    b.onclick = ()=>{ saisonZeigen = true; kachelnZeichnen(); };
     kasten.appendChild(b);
   }
 }
@@ -647,7 +836,9 @@ function mengeOeffnen(id){
   const a = ARTIKEL[id], p = ZETTEL[id];
   mengeEinheit = p ? p.einheit : a.e;
   $("mengeTitel").textContent = a.n;
-  $("mengeUnter").textContent = gruppeVon(a.g).name + (p ? "" : " · noch nicht auf dem Zettel");
+  const rt = rhythmusText(a);
+  $("mengeUnter").textContent = gruppeVon(a.g).name + (rt ? " · "+rt : "") +
+                                (p ? "" : " · noch nicht auf dem Zettel");
   $("mengeFeld").value = String(p ? p.menge : a.m).replace(".",",");
   $("mengeWeg").hidden = !p;
   einheitenZeichnen($("mengeEinheiten"), mengeEinheit, e=>{ mengeEinheit = e; });
@@ -717,7 +908,7 @@ $("neuOk").onclick = ()=>{
   const schon = !!ARTIKEL[id];
   if(!schon){
     setzen("artikel/"+id, {n:name, g:neuGruppe, e:neuEinheit, w:2, m:standardMenge(neuEinheit),
-                           kaeufe:0, zuletzt:0, eigen:true});
+                           kaeufe:0, zuletzt:0, angelegt:Date.now(), eigen:true});
   }
   const menge = schon ? ARTIKEL[id].m : standardMenge(neuEinheit);
   const einheit = schon ? ARTIKEL[id].e : neuEinheit;
@@ -743,13 +934,14 @@ $("frageJa").onclick = async ()=>{
   const stapel = {};
   fertig.forEach(id=>{
     const a = ARTIKEL[id];
-    const letzte = (a.letzte||[]).concat(jetzt).slice(-12);   // Grundlage fürs Lernen in Stufe 3
+    const letzte = (a.letzte||[]).concat(jetzt).slice(-100);  // gut zwei bis drei Jahre, Grundlage für Rhythmus und Saison
     stapel["artikel/"+id+"/kaeufe"]  = (a.kaeufe||0)+1;
     stapel["artikel/"+id+"/zuletzt"] = jetzt;
     stapel["artikel/"+id+"/letzte"]  = letzte;
     stapel["zettel/"+id] = null;
   });
   blattSchliessen();
+  reihenfolgeVergessen();
   try{ await F.update(F.ref(F.db), stapel); melden(fertig.length+" Artikel eingekauft"); }
   catch(f){ melden("Konnte nicht gespeichert werden."); }
 };
@@ -757,9 +949,15 @@ $("frageJa").onclick = async ()=>{
 /* ============ Bedienung ============ */
 $("rVor").onclick = ()=>reiterSetzen("vor");
 $("rZet").onclick = ()=>reiterSetzen("zet");
-$("suche").addEventListener("input", ()=>{ alleZeigen = false; kachelnZeichnen(); });
+$("suche").addEventListener("input", ()=>{
+  alleZeigen = false;
+  if(!$("suche").value.trim()) reihenfolgeVergessen();
+  kachelnZeichnen();
+});
 $("suche").addEventListener("keydown", e=>{ if(e.key==="Enter") e.target.blur(); });
-$("sucheLeeren").onclick = ()=>{ $("suche").value=""; alleZeigen=false; kachelnZeichnen(); $("suche").focus(); };
+$("sucheLeeren").onclick = ()=>{
+  $("suche").value=""; alleZeigen=false; reihenfolgeVergessen(); kachelnZeichnen(); $("suche").focus();
+};
 document.addEventListener("keydown", e=>{ if(e.key==="Escape" && offenesBlatt) blattSchliessen(); });
 
 /* ============ Anmeldung und Abgleich ============ */
