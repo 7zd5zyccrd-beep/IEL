@@ -3,6 +3,13 @@
   Einkaufszettel
 
   Änderungsliste
+  v0.8 · 05.09.2026 · Mehrere Haushalte in einem Firebase-Projekt: alle Daten
+                      liegen unter haushalte/<uid>/, am Schlossbildschirm ein
+                      zweites Feld für den Haushalt (Name + @einkauf.local),
+                      Name wird je Gerät gemerkt. Neue Datenbankregel nötig.
+  v0.7 · 05.09.2026 · Beim Abschließen werden die offenen Artikel aufgelistet:
+                      angehakt bleiben sie auf dem Zettel (Vorbelegung),
+                      abgewählte verschwinden ohne Kauf und ohne Spur im Verlauf.
   v0.6 · 05.09.2026 · Zahnradsymbol ersetzt – der von Hand geschriebene Pfad war
                       fehlerhaft; jetzt Reifen plus acht gedrehte Zähne.
   v0.5 · 05.09.2026 · Einstellungen hinter dem Zahnrad: Gruppenreihenfolge mit
@@ -109,6 +116,12 @@ button{background:none;border:0;padding:0;cursor:pointer}
 .abschnitt:first-child{margin-top:16px}
 .erklaerung{margin:0 0 10px;font-size:14px;color:var(--matt)}
 #einSuche{margin-bottom:10px}
+.mitnehmen{margin-bottom:16px}
+.mitnehmen .posten{max-height:40vh;overflow-y:auto}
+.mitnehmen .zeile[data-an="1"] .kasten{background:var(--akzent);border-color:var(--akzent)}
+.mitnehmen .zeile[data-an="1"] .kasten::after{content:"";width:11px;height:6px;border-left:2px solid #fff;border-bottom:2px solid #fff;transform:rotate(-45deg) translate(1px,-2px)}
+.mitnehmen .zeile[data-an="0"] .name{text-decoration:line-through;color:var(--matt)}
+.mitnehmen .nebentext{font-size:13px}
 .zeile .pfeile{display:flex;align-items:center;padding-right:8px;gap:2px}
 .pfeil{
   width:40px;height:40px;border-radius:10px;color:var(--akzent);
@@ -238,12 +251,14 @@ button{background:none;border:0;padding:0;cursor:pointer}
 <!-- Schlossbildschirm -->
 <div class="schloss" id="schloss">
   <h1>Einkaufszettel</h1>
-  <p>Haushaltspasswort eingeben. Das Gerät bleibt danach angemeldet, bis du es sperrst.</p>
+  <p>Haushalt und Passwort eingeben. Das Gerät bleibt danach angemeldet, bis du es sperrst.</p>
+  <input id="haushalt" type="text" inputmode="text" autocomplete="username" autocapitalize="none"
+         spellcheck="false" placeholder="Haushalt" aria-label="Haushalt">
   <input id="passwort" type="password" inputmode="text" autocomplete="current-password"
-         placeholder="Passwort" aria-label="Haushaltspasswort">
+         placeholder="Passwort" aria-label="Passwort">
   <p class="fehler" id="schlossFehler"></p>
   <button class="hauptknopf" id="anmelden">Anmelden</button>
-  <p class="schlossfuss">v0.6 · 05.09.2026</p>
+  <p class="schlossfuss">v0.8 · 05.09.2026</p>
 </div>
 
 <div id="app" hidden>
@@ -352,6 +367,10 @@ button{background:none;border:0;padding:0;cursor:pointer}
 <div class="sheet" id="sheetFrage" role="dialog" aria-modal="true" aria-labelledby="frageTitel">
   <h3 id="frageTitel">Einkauf abschließen?</h3>
   <p class="unterzeile" id="frageUnter"></p>
+  <div class="mitnehmen" id="frageOffen" hidden>
+    <label>Bleibt auf dem Zettel</label>
+    <div class="posten" id="frageOffenListe"></div>
+  </div>
   <div class="sheetknoepfe">
     <button class="weg" id="frageNein">Zurück</button>
     <button class="ok" id="frageJa">Abschließen</button>
@@ -397,7 +416,7 @@ const FB = {
   messagingSenderId: "788014023671",
   appId: "1:788014023671:web:f01e847c9729dd063b24f2"
 };
-const KONTO = "haushalt@einkauf.local";
+const DOMAENE = "@einkauf.local";   // der Haushaltsname davor ergibt das Konto
 const SDK = "https://www.gstatic.com/firebasejs/10.12.2/";
 
 /* ============ Gruppen (Reihenfolge = Weg durch den Laden) ============ */
@@ -477,6 +496,8 @@ hd:[["Spülmittel","Flasche",2],["Spülmaschinentabs","Pkg",2],["Klarspüler","F
 /* ============ Zustand ============ */
 const SP_SPIEGEL = "einkauf.spiegel";
 const SP_ANGEMELDET = "einkauf.angemeldet";
+const SP_NAME = "einkauf.haushalt";     // zuletzt benutzter Haushaltsname, nur zur Bequemlichkeit
+let BASIS = "";                          // "haushalte/<uid>/" – jeder Haushalt hat seinen eigenen Ast
 
 let UEBER = {};        // Änderungen und eigene Artikel aus der Datenbank
 let ZETTEL = {};       // der Zettel aus der Datenbank
@@ -527,13 +548,14 @@ function gruppenGeordnet(){
 
 /* ---- Kopie im Gerät, für schlechten Empfang ---- */
 function spiegelSchreiben(){
-  try{ localStorage.setItem(SP_SPIEGEL, JSON.stringify({u:UEBER, z:ZETTEL, gf:GRUPPENFOLGE})); }catch(f){}
+  try{ localStorage.setItem(SP_SPIEGEL, JSON.stringify({h:BASIS, u:UEBER, z:ZETTEL, gf:GRUPPENFOLGE})); }catch(f){}
 }
 function spiegelLesen(){
   try{
     const roh = localStorage.getItem(SP_SPIEGEL);
     if(!roh) return false;
     const d = JSON.parse(roh);
+    if(BASIS && d.h && d.h !== BASIS) return false;   // Kopie gehört einem anderen Haushalt
     UEBER = d.u||{}; ZETTEL = d.z||{}; GRUPPENFOLGE = Array.isArray(d.gf) ? d.gf : null;
     return true;
   }catch(f){ return false; }
@@ -574,7 +596,7 @@ function schreibsperre(){
   if(nurLesen || !F){ melden("Ohne Verbindung nicht änderbar."); return true; }
   return false;
 }
-function pfad(p){ return F.ref(F.db, p); }
+function pfad(p){ return F.ref(F.db, BASIS + p); }
 async function setzen(p, wert){ try{ await F.set(pfad(p), wert); }catch(f){ melden("Konnte nicht gespeichert werden."); } }
 async function aendern(p, teil){ try{ await F.update(pfad(p), teil); }catch(f){ melden("Konnte nicht gespeichert werden."); } }
 async function entfernen(p){ try{ await F.remove(pfad(p)); }catch(f){ melden("Konnte nicht gespeichert werden."); } }
@@ -1018,14 +1040,54 @@ $("neuOk").onclick = ()=>{
 };
 
 /* --- Einkauf abschließen --- */
+let behalten = {};   // offener Artikel -> bleibt auf dem Zettel
+
 $("abschliessen").onclick = ()=>{
   if(schreibsperre()) return;
-  const fertig = abgehakte().length;
-  const offen = zettelListe().length - fertig;
-  $("frageUnter").textContent = fertig+" abgehakt"+(offen ? ", "+offen+" bleiben stehen." : ".")+
-                                " Abgehaktes wird als Kauf vermerkt.";
+  const fertig = abgehakte();
+  const offen = zettelListe().filter(id=>!ZETTEL[id].ab);
+
+  $("frageUnter").textContent = fertig.length+" abgehakt, wird als Kauf vermerkt."+
+    (offen.length ? " Was nicht mitgekommen ist, steht unten – abgewählte Artikel verschwinden vom Zettel, ohne als Kauf zu zählen." : "");
+
+  behalten = {};
+  offen.forEach(id=>{ behalten[id] = true; });   // Vorbelegung: alles bleibt drauf
+  $("frageOffen").hidden = !offen.length;
+  offeneZeichnen(offen);
+
   blattOeffnen($("sheetFrage"));
 };
+
+function offeneZeichnen(offen){
+  const kasten = $("frageOffenListe");
+  kasten.innerHTML = "";
+  offen.sort((a,b)=>ARTIKEL[a].n.localeCompare(ARTIKEL[b].n,"de")).forEach(id=>{
+    const a = ARTIKEL[id], p = ZETTEL[id];
+    const zeile = document.createElement("div");
+    zeile.className = "zeile";
+    zeile.dataset.an = behalten[id] ? "1" : "0";
+
+    const haken = document.createElement("button");
+    haken.className = "haken";
+    const kast = document.createElement("span"); kast.className = "kasten";
+    const name = document.createElement("span"); name.className = "name"; name.textContent = a.n;
+    haken.appendChild(kast); haken.appendChild(name);
+    haken.setAttribute("aria-pressed", !!behalten[id]);
+    haken.onclick = ()=>{
+      behalten[id] = !behalten[id];
+      zeile.dataset.an = behalten[id] ? "1" : "0";
+      haken.setAttribute("aria-pressed", !!behalten[id]);
+    };
+
+    const menge = document.createElement("div");
+    menge.className = "nebentext";
+    menge.textContent = mengeText(p.menge,p.einheit);
+
+    zeile.appendChild(haken); zeile.appendChild(menge);
+    kasten.appendChild(zeile);
+  });
+}
+
 $("frageNein").onclick = blattSchliessen;
 $("frageJa").onclick = async ()=>{
   const jetzt = Date.now();
@@ -1034,15 +1096,23 @@ $("frageJa").onclick = async ()=>{
   fertig.forEach(id=>{
     const a = ARTIKEL[id];
     const letzte = (a.letzte||[]).concat(jetzt).slice(-100);  // gut zwei bis drei Jahre, Grundlage für Rhythmus und Saison
-    stapel["artikel/"+id+"/kaeufe"]  = (a.kaeufe||0)+1;
-    stapel["artikel/"+id+"/zuletzt"] = jetzt;
-    stapel["artikel/"+id+"/letzte"]  = letzte;
-    stapel["zettel/"+id] = null;
+    stapel[BASIS+"artikel/"+id+"/kaeufe"]  = (a.kaeufe||0)+1;
+    stapel[BASIS+"artikel/"+id+"/zuletzt"] = jetzt;
+    stapel[BASIS+"artikel/"+id+"/letzte"]  = letzte;
+    stapel[BASIS+"zettel/"+id] = null;
   });
+  // abgewählte offene Artikel: nur vom Zettel, ohne Kauf und ohne Spur im Verlauf
+  let gestrichen = 0;
+  Object.keys(behalten).forEach(id=>{
+    if(!behalten[id] && ZETTEL[id]){ stapel[BASIS+"zettel/"+id] = null; gestrichen++; }
+  });
+
   blattSchliessen();
   reihenfolgeVergessen();
-  try{ await F.update(F.ref(F.db), stapel); melden(fertig.length+" Artikel eingekauft"); }
-  catch(f){ melden("Konnte nicht gespeichert werden."); }
+  try{
+    await F.update(F.ref(F.db), stapel);
+    melden(fertig.length+" Artikel eingekauft"+(gestrichen ? ", "+gestrichen+" gestrichen" : ""));
+  }catch(f){ melden("Konnte nicht gespeichert werden."); }
 };
 
 /* ============ Einstellungen ============ */
@@ -1073,7 +1143,7 @@ function einstellungenZeichnen(){
   gruppenZeichnen();
   artikelListeZeichnen();
   const stand = nurLesen ? "ohne Verbindung" : "verbunden";
-  $("einFuss").textContent = "v0.6 · 05.09.2026 · "+stand;
+  $("einFuss").textContent = "v0.8 · 05.09.2026 · "+stand;
 }
 
 function gruppenZeichnen(){
@@ -1259,7 +1329,9 @@ function fehlerText(code){
     return "Passwort stimmt nicht.";
   if(code==="auth/too-many-requests") return "Zu viele Versuche. Kurz warten, dann noch einmal.";
   if(code==="auth/network-request-failed") return "Keine Verbindung zum Netz.";
-  if(code==="auth/user-disabled") return "Dieses Konto ist gesperrt.";
+  if(code==="auth/user-disabled") return "Dieser Haushalt ist gesperrt.";
+  if(code==="auth/user-not-found" || code==="auth/invalid-email")
+    return "Diesen Haushalt gibt es nicht. Schreibweise prüfen.";
   return "Anmeldung nicht möglich ("+code+").";
 }
 function appZeigen(){
@@ -1271,6 +1343,7 @@ function schlossZeigen(){
   $("app").hidden = true;
   $("schloss").hidden = false;
   $("passwort").value = "";
+  try{ $("haushalt").value = localStorage.getItem(SP_NAME)||""; }catch(f){}
 }
 
 let lauscht = false;
@@ -1278,17 +1351,17 @@ function lauschen(dbMod, db){
   if(lauscht) return;
   lauscht = true;
 
-  dbMod.onValue(dbMod.ref(db,"artikel"), s=>{
+  dbMod.onValue(dbMod.ref(db,BASIS+"artikel"), s=>{
     UEBER = s.val() || {};
     spiegelSchreiben(); zeichnen();
   }, f=>{ streifen("Die Datenbank antwortet nicht: "+(f.message||"")); });
 
-  dbMod.onValue(dbMod.ref(db,"zettel"), s=>{
+  dbMod.onValue(dbMod.ref(db,BASIS+"zettel"), s=>{
     ZETTEL = s.val() || {};
     spiegelSchreiben(); zeichnen();
   });
 
-  dbMod.onValue(dbMod.ref(db,"einstellungen/gruppen"), s=>{
+  dbMod.onValue(dbMod.ref(db,BASIS+"einstellungen/gruppen"), s=>{
     const folge = s.val();
     GRUPPENFOLGE = Array.isArray(folge) ? folge : null;
     spiegelSchreiben(); zeichnen();
@@ -1330,31 +1403,41 @@ async function start(){
   try{ await authMod.setPersistence(auth, authMod.browserLocalPersistence); }catch(f){}
 
   $("anmelden").onclick = async ()=>{
+    const name = ($("haushalt").value||"").trim().toLowerCase()
+                   .replace(/ä/g,"ae").replace(/ö/g,"oe").replace(/ü/g,"ue").replace(/ß/g,"ss")
+                   .replace(/[^a-z0-9]+/g,"");
     const pw = $("passwort").value;
+    if(!name){ $("schlossFehler").textContent = "Bitte den Haushalt eingeben."; return; }
     if(!pw){ $("schlossFehler").textContent = "Bitte das Passwort eingeben."; return; }
     $("anmelden").disabled = true;
     $("schlossFehler").textContent = "";
-    try{ await authMod.signInWithEmailAndPassword(auth, KONTO, pw); }
-    catch(f){ $("schlossFehler").textContent = fehlerText(f.code||""); }
+    try{
+      await authMod.signInWithEmailAndPassword(auth, name+DOMAENE, pw);
+      try{ localStorage.setItem(SP_NAME, name); }catch(f){}
+    }catch(f){ $("schlossFehler").textContent = fehlerText(f.code||""); }
     $("anmelden").disabled = false;
   };
+  try{ $("haushalt").value = localStorage.getItem(SP_NAME)||""; }catch(f){}
+  $("haushalt").addEventListener("keydown", e=>{ if(e.key==="Enter") $("passwort").focus(); });
   $("passwort").addEventListener("keydown", e=>{ if(e.key==="Enter") $("anmelden").click(); });
 
   $("sperren").onclick = async ()=>{
     merker(false);
     try{ localStorage.removeItem(SP_SPIEGEL); }catch(f){}
-    UEBER = {}; ZETTEL = {}; GRUPPENFOLGE = null;
+    UEBER = {}; ZETTEL = {}; GRUPPENFOLGE = null; BASIS = "";
     try{ await authMod.signOut(auth); }catch(f){}
     location.reload();
   };
 
   authMod.onAuthStateChanged(auth, nutzer=>{
     if(nutzer){
+      BASIS = "haushalte/" + nutzer.uid + "/";
       merker(true);
       spiegelLesen();      // erst der letzte bekannte Stand, gleich darauf die echten Daten
       appZeigen();
       lauschen(dbMod, db);
     }else{
+      BASIS = "";
       schlossZeigen();
     }
   });
