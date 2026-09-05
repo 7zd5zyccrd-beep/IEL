@@ -3,6 +3,10 @@
   Einkaufszettel
 
   Änderungsliste
+  v0.5 · 05.09.2026 · Einstellungen hinter dem Zahnrad: Gruppenreihenfolge mit
+                      Pfeilen, Artikel umbenennen / Gruppe / Einheit,
+                      Ausblenden und Zurückholen, Zettel leeren, Gerät sperren.
+                      Symbol für den Home-Bildschirm (apple-touch-icon.png).
   v0.4 · 05.09.2026 · Saison: gleitendes Fenster von ±3 Wochen um das heutige
                       Datum, Saisonangaben ab Werk im Grundstock, Dämpfung der
                       Fälligkeit außerhalb der Saison, Ausblenden mit Knopf zum
@@ -29,6 +33,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex, nofollow">
 <meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Einkaufszettel">
+<meta name="theme-color" content="#2E6F4E">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
 <title>Einkaufszettel</title>
 <style>
 :root{
@@ -94,6 +101,20 @@ button{background:none;border:0;padding:0;cursor:pointer}
   margin:10px 0 0;padding:9px 12px;border-radius:12px;
   background:#F6E9D2;color:#6B4A15;font-size:14px;
 }
+.zahnrad{display:flex;align-items:center;color:var(--matt);padding:6px;margin:-6px}
+.zahnrad[data-auf="1"]{color:var(--akzent)}
+.abschnitt{margin:26px 0 6px;font-size:13px;font-weight:650;color:var(--matt);letter-spacing:.2px}
+.abschnitt:first-child{margin-top:16px}
+.erklaerung{margin:0 0 10px;font-size:14px;color:var(--matt)}
+#einSuche{margin-bottom:10px}
+.zeile .pfeile{display:flex;align-items:center;padding-right:8px;gap:2px}
+.pfeil{
+  width:40px;height:40px;border-radius:10px;color:var(--akzent);
+  display:flex;align-items:center;justify-content:center;font-size:19px;
+}
+.pfeil[disabled]{color:#C6CCC5}
+.zeile .nebentext{padding:0 14px;font-size:14px;color:var(--matt);display:flex;align-items:center;white-space:nowrap}
+.zeile[data-aus="1"] .name{color:var(--matt)}
 
 .blatt{padding:0 16px}
 .suchzeile{position:sticky;top:calc(var(--sicher-oben) + 108px);z-index:15;background:var(--papier);padding:12px 0 8px}
@@ -220,19 +241,24 @@ button{background:none;border:0;padding:0;cursor:pointer}
          placeholder="Passwort" aria-label="Haushaltspasswort">
   <p class="fehler" id="schlossFehler"></p>
   <button class="hauptknopf" id="anmelden">Anmelden</button>
-  <p class="schlossfuss">v0.4 · 05.09.2026</p>
+  <p class="schlossfuss">v0.5 · 05.09.2026</p>
 </div>
 
 <div id="app" hidden>
   <header class="kopf">
     <div class="kopfzeile">
-      <h1>Einkaufszettel</h1>
+      <h1 id="kopftitel">Einkaufszettel</h1>
       <span class="kopfrechts">
         <span class="funk" id="funk" title="Verbindung"></span>
-        <button class="fassung" id="sperren">Sperren</button>
+        <button class="zahnrad" id="zahnrad" aria-label="Einstellungen">
+          <svg viewBox="0 0 24 24" width="23" height="23" aria-hidden="true">
+            <path fill="currentColor" d="M12 8.6a3.4 3.4 0 100 6.8 3.4 3.4 0 000-6.8zm0 5.2a1.8 1.8 0 110-3.6 1.8 1.8 0 010 3.6z"/>
+            <path fill="currentColor" d="M20.3 13.1c.05-.36.07-.73.07-1.1s-.02-.74-.07-1.1l1.7-1.28a.5.5 0 00.13-.63l-1.7-2.95a.5.5 0 00-.6-.22l-2 .8a6.9 6.9 0 00-1.9-1.1l-.3-2.13a.5.5 0 00-.5-.42h-3.4a.5.5 0 00-.5.42l-.3 2.13c-.7.28-1.33.65-1.9 1.1l-2-.8a.5.5 0 00-.6.22l-1.7 2.95a.5.5 0 00.13.63L4.4 10.9c-.05.36-.07.73-.07 1.1s.02.74.07 1.1l-1.7 1.28a.5.5 0 00-.13.63l1.7 2.95c.13.22.4.3.6.22l2-.8c.57.45 1.2.82 1.9 1.1l.3 2.13c.04.24.25.42.5.42h3.4c.25 0 .46-.18.5-.42l.3-2.13c.7-.28 1.33-.65 1.9-1.1l2 .8c.2.08.47 0 .6-.22l1.7-2.95a.5.5 0 00-.13-.63l-1.7-1.28zm-1.72-2.9c.04.3.06.58.06.8s-.02.5-.06.8l-.12.95.75.57.92.7-.6 1.04-1.08-.43-.88-.35-.76.6c-.44.34-.92.62-1.44.83l-.9.36-.13.95-.17 1.15h-1.2l-.16-1.15-.14-.95-.89-.36a5.3 5.3 0 01-1.44-.83l-.76-.6-.88.35-1.08.43-.6-1.04.92-.7.75-.57-.12-.95a6.5 6.5 0 01-.06-.8c0-.22.02-.5.07-.8l.12-.95-.76-.58-.92-.7.6-1.03 1.08.43.88.35.76-.6c.44-.34.92-.62 1.44-.83l.9-.36.13-.95.16-1.15h1.19l.16 1.15.14.95.89.36c.5.2.98.48 1.44.83l.76.6.88-.35 1.08-.43.6 1.04-.92.7-.75.57.12.95z"/>
+          </svg>
+        </button>
       </span>
     </div>
-    <div class="reiter" role="tablist">
+    <div class="reiter" role="tablist" id="reiter">
       <button id="rVor" role="tab" aria-selected="true">Vorschläge</button>
       <button id="rZet" role="tab" aria-selected="false">Zettel<span class="zaehler" id="zettelZahl">0</span></button>
     </div>
@@ -251,6 +277,27 @@ button{background:none;border:0;padding:0;cursor:pointer}
       <div class="kacheln" id="kacheln"></div>
     </section>
     <section id="ansichtZet" hidden></section>
+
+    <section id="ansichtEin" hidden>
+      <h2 class="abschnitt">Reihenfolge im Laden</h2>
+      <p class="erklaerung">So stehen die Gruppen auf dem Zettel. Ordne sie nach deinem Weg durch den Laden.</p>
+      <div class="posten" id="gruppenListe"></div>
+
+      <h2 class="abschnitt">Artikel</h2>
+      <div class="suchhuelle">
+        <input id="einSuche" class="suchfeld" type="search" inputmode="search" autocomplete="off"
+               placeholder="Artikel suchen" aria-label="Artikel suchen">
+      </div>
+      <div class="posten" id="artikelListe"></div>
+      <button class="mehr" id="ausgeblendeteZeigen" hidden></button>
+
+      <h2 class="abschnitt">Sonstiges</h2>
+      <div class="posten">
+        <div class="zeile"><button class="haken" id="zettelLeeren"><span class="name">Zettel leeren</span></button></div>
+        <div class="zeile"><button class="haken" id="sperren"><span class="name">Gerät sperren</span></button></div>
+      </div>
+      <p class="erklaerung" id="einFuss"></p>
+    </section>
   </main>
 
   <div class="fussleiste" id="fussleiste" hidden>
@@ -297,6 +344,30 @@ button{background:none;border:0;padding:0;cursor:pointer}
   <div class="sheetknoepfe">
     <button class="weg" id="frageNein">Zurück</button>
     <button class="ok" id="frageJa">Abschließen</button>
+  </div>
+</div>
+
+<div class="sheet" id="sheetArtikel" role="dialog" aria-modal="true" aria-labelledby="artTitel">
+  <h3 id="artTitel">Artikel</h3>
+  <p class="unterzeile" id="artUnter"></p>
+  <label for="artName">Name</label>
+  <input class="namensfeld" id="artName" autocomplete="off">
+  <label>Gruppe</label>
+  <div class="wahl" id="artGruppen"></div>
+  <label>Einheit</label>
+  <div class="wahl" id="artEinheiten"></div>
+  <div class="sheetknoepfe">
+    <button class="weg" id="artAus">Aus den Vorschlägen</button>
+    <button class="ok" id="artOk">Übernehmen</button>
+  </div>
+</div>
+
+<div class="sheet" id="sheetLeeren" role="dialog" aria-modal="true" aria-labelledby="leerenTitel">
+  <h3 id="leerenTitel">Zettel leeren?</h3>
+  <p class="unterzeile" id="leerenUnter"></p>
+  <div class="sheetknoepfe">
+    <button class="weg" id="leerenNein">Zurück</button>
+    <button class="ok" id="leerenJa">Leeren</button>
   </div>
 </div>
 
@@ -424,26 +495,35 @@ function artikelMischen(){
   Object.keys(UEBER).forEach(id=>{
     const q = UEBER[id] || {};
     if(ARTIKEL[id]){
-      ["e","m","kaeufe","zuletzt","letzte"].forEach(k=>{ if(q[k]!==undefined) ARTIKEL[id][k]=q[k]; });
+      ["n","g","e","m","kaeufe","zuletzt","letzte","aus"].forEach(k=>{ if(q[k]!==undefined) ARTIKEL[id][k]=q[k]; });
     }else if(q.n && q.g){
       ARTIKEL[id] = {n:q.n, g:q.g, e:q.e||"Stk", w:q.w||2, m:q.m||standardMenge(q.e||"Stk"),
-                     kaeufe:q.kaeufe||0, zuletzt:q.zuletzt||0, letzte:q.letzte||[],
-                     angelegt:q.angelegt||0, eigen:true};
+                     saison:null, kaeufe:q.kaeufe||0, zuletzt:q.zuletzt||0, letzte:q.letzte||[],
+                     angelegt:q.angelegt||0, aus:q.aus||false, eigen:true};
     }
     if(ARTIKEL[id] && !Array.isArray(ARTIKEL[id].letzte)) ARTIKEL[id].letzte = [];
   });
 }
 
+/* Reihenfolge der Gruppen: der Weg durch den Laden, in den Einstellungen verschiebbar */
+let GRUPPENFOLGE = null;
+function gruppenGeordnet(){
+  if(!GRUPPENFOLGE) return GRUPPEN;
+  const bekannt = GRUPPENFOLGE.map(id=>GRUPPEN.find(g=>g.id===id)).filter(Boolean);
+  const rest = GRUPPEN.filter(g=>bekannt.indexOf(g)<0);
+  return bekannt.concat(rest);
+}
+
 /* ---- Kopie im Gerät, für schlechten Empfang ---- */
 function spiegelSchreiben(){
-  try{ localStorage.setItem(SP_SPIEGEL, JSON.stringify({u:UEBER, z:ZETTEL})); }catch(f){}
+  try{ localStorage.setItem(SP_SPIEGEL, JSON.stringify({u:UEBER, z:ZETTEL, gf:GRUPPENFOLGE})); }catch(f){}
 }
 function spiegelLesen(){
   try{
     const roh = localStorage.getItem(SP_SPIEGEL);
     if(!roh) return false;
     const d = JSON.parse(roh);
-    UEBER = d.u||{}; ZETTEL = d.z||{};
+    UEBER = d.u||{}; ZETTEL = d.z||{}; GRUPPENFOLGE = Array.isArray(d.gf) ? d.gf : null;
     return true;
   }catch(f){ return false; }
 }
@@ -665,6 +745,10 @@ function geordnet(){
 function reiterSetzen(neu){
   ansicht = neu;
   if(neu==="vor"){ reihenfolgeVergessen(); saisonZeigen = false; }
+  $("ansichtEin").hidden = true;
+  $("zahnrad").dataset.auf = "0";
+  $("kopftitel").textContent = "Einkaufszettel";
+  $("reiter").hidden = false;
   $("rVor").setAttribute("aria-selected", neu==="vor");
   $("rZet").setAttribute("aria-selected", neu==="zet");
   $("ansichtVor").hidden = neu!=="vor";
@@ -677,7 +761,9 @@ function reiterSetzen(neu){
 function zeichnen(){
   artikelMischen();
   $("zettelZahl").textContent = offeneZahl();
-  if(ansicht==="vor") kachelnZeichnen(); else zettelZeichnen();
+  if(ansicht==="ein") einstellungenZeichnen();
+  else if(ansicht==="vor") kachelnZeichnen();
+  else zettelZeichnen();
   const fertig = abgehakte().length;
   const k = $("abschliessen");
   k.disabled = fertig===0 || nurLesen;
@@ -694,7 +780,9 @@ function kachelnZeichnen(){
     ids = sortiert(Object.keys(ARTIKEL).filter(id=>ARTIKEL[id].n.toLowerCase().includes(such)));
   }else{
     ids = geordnet().filter(id=>{
-      if(ZETTEL[id] || saisonZeigen) return true;
+      if(ZETTEL[id]) return true;
+      if(ARTIKEL[id].aus) return false;
+      if(saisonZeigen) return true;
       if(ausserSaison(ARTIKEL[id])){ ausgeblendet++; return false; }
       return true;
     });
@@ -768,7 +856,7 @@ function zettelZeichnen(){
     ziel.appendChild(l);
     return;
   }
-  GRUPPEN.forEach(g=>{
+  gruppenGeordnet().forEach(g=>{
     const posten = ids.filter(id=>ARTIKEL[id].g===g.id)
                       .sort((a,b)=>ARTIKEL[a].n.localeCompare(ARTIKEL[b].n,"de"));
     if(!posten.length) return;
@@ -884,7 +972,7 @@ function neuOeffnen(name){
   $("neuName").value = name;
   const kasten = $("neuGruppen");
   kasten.innerHTML = "";
-  GRUPPEN.forEach(g=>{
+  gruppenGeordnet().forEach(g=>{
     const b = document.createElement("button");
     const punkt = document.createElement("span");
     punkt.style.cssText = "display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;background:"+g.farbe;
@@ -946,6 +1034,200 @@ $("frageJa").onclick = async ()=>{
   catch(f){ melden("Konnte nicht gespeichert werden."); }
 };
 
+/* ============ Einstellungen ============ */
+let ausgeblendeteZeigen = false;
+
+function einstellungenOeffnen(){
+  ansicht = "ein";
+  $("zahnrad").dataset.auf = "1";
+  $("kopftitel").textContent = "Einstellungen";
+  $("reiter").hidden = true;
+  $("ansichtVor").hidden = true;
+  $("ansichtZet").hidden = true;
+  $("ansichtEin").hidden = false;
+  $("fussleiste").hidden = true;
+  ausgeblendeteZeigen = false;
+  window.scrollTo(0,0);
+  einstellungenZeichnen();
+}
+function einstellungenSchliessen(){
+  $("zahnrad").dataset.auf = "0";
+  $("kopftitel").textContent = "Einkaufszettel";
+  $("reiter").hidden = false;
+  $("ansichtEin").hidden = true;
+  reiterSetzen("vor");
+}
+
+function einstellungenZeichnen(){
+  gruppenZeichnen();
+  artikelListeZeichnen();
+  const stand = nurLesen ? "ohne Verbindung" : "verbunden";
+  $("einFuss").textContent = "v0.5 · 05.09.2026 · "+stand;
+}
+
+function gruppenZeichnen(){
+  const kasten = $("gruppenListe");
+  kasten.innerHTML = "";
+  const folge = gruppenGeordnet();
+  folge.forEach((g,i)=>{
+    const zeile = document.createElement("div");
+    zeile.className = "zeile";
+
+    const links = document.createElement("div");
+    links.className = "haken";
+    const punkt = document.createElement("span");
+    punkt.className = "punkt";
+    punkt.style.cssText = "width:10px;height:10px;border-radius:50%;flex:none;background:"+g.farbe;
+    const name = document.createElement("span"); name.className = "name"; name.textContent = g.name;
+    links.appendChild(punkt); links.appendChild(name);
+
+    const pfeile = document.createElement("div");
+    pfeile.className = "pfeile";
+    const hoch = document.createElement("button");
+    hoch.className = "pfeil"; hoch.textContent = "▲"; hoch.setAttribute("aria-label","nach oben");
+    hoch.disabled = i===0;
+    hoch.onclick = ()=>gruppeSchieben(i,-1);
+    const runter = document.createElement("button");
+    runter.className = "pfeil"; runter.textContent = "▼"; runter.setAttribute("aria-label","nach unten");
+    runter.disabled = i===folge.length-1;
+    runter.onclick = ()=>gruppeSchieben(i,1);
+    pfeile.appendChild(hoch); pfeile.appendChild(runter);
+
+    zeile.appendChild(links); zeile.appendChild(pfeile);
+    kasten.appendChild(zeile);
+  });
+}
+function gruppeSchieben(i,richtung){
+  if(schreibsperre()) return;
+  const folge = gruppenGeordnet().map(g=>g.id);
+  const j = i+richtung;
+  if(j<0 || j>=folge.length) return;
+  const merk = folge[i]; folge[i] = folge[j]; folge[j] = merk;
+  GRUPPENFOLGE = folge;
+  gruppenZeichnen();
+  setzen("einstellungen/gruppen", folge);
+}
+
+function artikelListeZeichnen(){
+  const kasten = $("artikelListe");
+  kasten.innerHTML = "";
+  const such = $("einSuche").value.trim().toLowerCase();
+
+  let ids = Object.keys(ARTIKEL);
+  if(such) ids = ids.filter(id=>ARTIKEL[id].n.toLowerCase().includes(such));
+  const versteckt = ids.filter(id=>ARTIKEL[id].aus);
+  if(!ausgeblendeteZeigen && !such) ids = ids.filter(id=>!ARTIKEL[id].aus);
+  ids.sort((a,b)=>ARTIKEL[a].n.localeCompare(ARTIKEL[b].n,"de"));
+
+  const knopf = $("ausgeblendeteZeigen");
+  if(versteckt.length && !ausgeblendeteZeigen && !such){
+    knopf.hidden = false;
+    knopf.textContent = versteckt.length===1 ? "1 ausgeblendeten Artikel zeigen"
+                                             : versteckt.length+" ausgeblendete Artikel zeigen";
+    knopf.onclick = ()=>{ ausgeblendeteZeigen = true; artikelListeZeichnen(); };
+  }else knopf.hidden = true;
+
+  if(!ids.length){
+    const l = document.createElement("div");
+    l.className = "leer"; l.textContent = "Kein Artikel gefunden.";
+    kasten.appendChild(l);
+    return;
+  }
+  ids.slice(0,80).forEach(id=>{
+    const a = ARTIKEL[id];
+    const zeile = document.createElement("div");
+    zeile.className = "zeile";
+    if(a.aus) zeile.dataset.aus = "1";
+
+    const links = document.createElement("button");
+    links.className = "haken";
+    const punkt = document.createElement("span");
+    punkt.className = "punkt";
+    punkt.style.cssText = "width:10px;height:10px;border-radius:50%;flex:none;background:"+gruppeVon(a.g).farbe;
+    const name = document.createElement("span"); name.className = "name"; name.textContent = a.n;
+    links.appendChild(punkt); links.appendChild(name);
+    links.onclick = ()=>artikelOeffnen(id);
+
+    const rechts = document.createElement("div");
+    rechts.className = "nebentext";
+    rechts.textContent = a.aus ? "ausgeblendet" : (a.kaeufe ? a.kaeufe+"×" : "");
+
+    zeile.appendChild(links); zeile.appendChild(rechts);
+    kasten.appendChild(zeile);
+  });
+  if(ids.length>80){
+    const l = document.createElement("div");
+    l.className = "leer";
+    l.textContent = "… noch "+(ids.length-80)+" weitere. Nutze das Suchfeld.";
+    kasten.appendChild(l);
+  }
+}
+
+/* --- Artikel bearbeiten --- */
+let artId = null, artGruppe = null, artEinheit = null;
+function artikelOeffnen(id){
+  if(schreibsperre()) return;
+  artId = id;
+  const a = ARTIKEL[id];
+  artGruppe = a.g; artEinheit = a.e;
+  $("artTitel").textContent = a.n;
+  $("artUnter").textContent = rhythmusText(a) || "noch nichts gelernt";
+  $("artName").value = a.n;
+  $("artAus").textContent = a.aus ? "Wieder anzeigen" : "Aus den Vorschlägen";
+
+  const kasten = $("artGruppen");
+  kasten.innerHTML = "";
+  gruppenGeordnet().forEach(g=>{
+    const b = document.createElement("button");
+    const punkt = document.createElement("span");
+    punkt.style.cssText = "display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;background:"+g.farbe;
+    b.appendChild(punkt); b.appendChild(document.createTextNode(g.name));
+    b.setAttribute("aria-pressed", g.id===artGruppe);
+    b.onclick = ()=>{
+      artGruppe = g.id;
+      [...kasten.children].forEach(c=>c.setAttribute("aria-pressed", c===b));
+    };
+    kasten.appendChild(b);
+  });
+  einheitenZeichnen($("artEinheiten"), artEinheit, e=>{ artEinheit = e; });
+  blattOeffnen($("sheetArtikel"));
+}
+$("artOk").onclick = ()=>{
+  const name = $("artName").value.trim();
+  if(!name){ melden("Der Name fehlt noch."); return; }
+  // Die Kennung bleibt, wie sie ist – daran hängen Verlauf, Rhythmus und Saison
+  aendern("artikel/"+artId, {n:name, g:artGruppe, e:artEinheit});
+  blattSchliessen();
+  melden("Übernommen");
+};
+$("artAus").onclick = ()=>{
+  const a = ARTIKEL[artId], neu = !a.aus;
+  aendern("artikel/"+artId, {aus:neu});
+  if(neu) entfernen("zettel/"+artId);
+  blattSchliessen();
+  reihenfolgeVergessen();
+  melden(neu ? a.n+" ausgeblendet" : a.n+" wieder da");
+};
+
+/* --- Zettel leeren --- */
+$("zettelLeeren").onclick = ()=>{
+  if(schreibsperre()) return;
+  const anzahl = zettelListe().length;
+  if(!anzahl){ melden("Der Zettel ist schon leer."); return; }
+  $("leerenUnter").textContent = anzahl+" Artikel werden vom Zettel genommen, ohne als Kauf zu zählen.";
+  blattOeffnen($("sheetLeeren"));
+};
+$("leerenNein").onclick = blattSchliessen;
+$("leerenJa").onclick = ()=>{
+  entfernen("zettel");
+  blattSchliessen();
+  melden("Zettel geleert");
+};
+
+$("zahnrad").onclick = ()=>{ ansicht==="ein" ? einstellungenSchliessen() : einstellungenOeffnen(); };
+$("einSuche").addEventListener("input", artikelListeZeichnen);
+$("einSuche").addEventListener("keydown", e=>{ if(e.key==="Enter") e.target.blur(); });
+
 /* ============ Bedienung ============ */
 $("rVor").onclick = ()=>reiterSetzen("vor");
 $("rZet").onclick = ()=>reiterSetzen("zet");
@@ -992,6 +1274,12 @@ function lauschen(dbMod, db){
 
   dbMod.onValue(dbMod.ref(db,"zettel"), s=>{
     ZETTEL = s.val() || {};
+    spiegelSchreiben(); zeichnen();
+  });
+
+  dbMod.onValue(dbMod.ref(db,"einstellungen/gruppen"), s=>{
+    const folge = s.val();
+    GRUPPENFOLGE = Array.isArray(folge) ? folge : null;
     spiegelSchreiben(); zeichnen();
   });
 
@@ -1044,7 +1332,7 @@ async function start(){
   $("sperren").onclick = async ()=>{
     merker(false);
     try{ localStorage.removeItem(SP_SPIEGEL); }catch(f){}
-    UEBER = {}; ZETTEL = {};
+    UEBER = {}; ZETTEL = {}; GRUPPENFOLGE = null;
     try{ await authMod.signOut(auth); }catch(f){}
     location.reload();
   };
