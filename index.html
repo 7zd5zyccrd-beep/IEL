@@ -3,6 +3,11 @@
   Einkaufszettel
 
   Änderungsliste
+  v0.18 · 05.10.2026 · Mehreres auf einmal ins Suchfeld („Milch, Brot, 2 Kästen
+                      Bier“ oder „… und …“). Zahlwörter zum Diktieren („zwei
+                      Kästen Bier“, „ein halbes Kilo Hack“). Die App lernt aus der
+                      Abhak-Reihenfolge den Weg durch jeden Laden und schlägt ab
+                      drei Einkäufen eine Gruppenreihenfolge vor.
   v0.17 · 05.10.2026 · Fortschritt oben auf dem Zettel („7 von 12 erledigt“),
                       ganz erledigte Gruppen klappen zu. Mehrere Läden mit
                       eigener Gruppenreihenfolge, Auswahl auf dem Zettel.
@@ -255,6 +260,9 @@ button{background:none;border:0;padding:0;cursor:pointer}
 .gruppe h2.klappe{cursor:pointer}
 .gruppe h2 .erledigt{margin-left:auto;font-weight:600;color:var(--akzent)}
 .gruppe[data-zu="1"] h2{margin-bottom:0}
+.lernbox{margin-top:10px;padding:12px 14px;border-radius:var(--rand);background:var(--akzent-hell);color:var(--drauf-text);font-size:14px}
+.lernbox p{margin:0 0 10px}
+.lernknopf{min-height:40px;padding:0 14px;border-radius:10px;background:var(--akzent);color:#fff;font-size:15px;font-weight:600}
 .ladenknoepfe{display:flex;gap:10px;margin-top:6px}
 .ladenknoepfe .mehr{flex:1;width:auto}
 .ladenknoepfe .mehr.loeschen-laden{color:var(--warnung)}
@@ -341,7 +349,7 @@ button{background:none;border:0;padding:0;cursor:pointer}
          placeholder="Passwort" aria-label="Passwort">
   <p class="fehler" id="schlossFehler"></p>
   <button class="hauptknopf" id="anmelden">Anmelden</button>
-  <p class="schlossfuss">v0.17 · 05.10.2026</p>
+  <p class="schlossfuss">v0.18 · 05.10.2026</p>
 </div>
 
 <div id="app" hidden>
@@ -398,6 +406,10 @@ button{background:none;border:0;padding:0;cursor:pointer}
       <p class="erklaerung">Jeder Laden hat seine eigene Reihenfolge der Gruppen. Wähle den Laden und ordne die Gruppen nach deinem Weg durch ihn; auf dem Zettel stellst du ein, wo du gerade bist.</p>
       <div class="wahl" id="ladenWahl"></div>
       <div class="posten" id="gruppenListe"></div>
+      <div class="lernbox" id="wegVorschlag" hidden>
+        <p id="wegText"></p>
+        <button class="lernknopf" id="wegUebernehmen">Diese Reihenfolge übernehmen</button>
+      </div>
       <div class="ladenknoepfe">
         <button class="mehr" id="ladenUmbenennen">Umbenennen</button>
         <button class="mehr loeschen-laden" id="ladenLoeschen">Laden löschen</button>
@@ -671,6 +683,7 @@ let GRUPPENFOLGE = null;     // Reihenfolge des ersten Ladens (einstellungen/gru
 let LAEDEN = {};
 let STANDARDNAME = null;
 let LADEN = "";
+let WEGE = {};   // einstellungen/wege/<laden|standard>: die letzten Einkäufe als Gruppenfolge in Abhak-Reihenfolge
 try{ LADEN = localStorage.getItem(SP_LADEN)||""; }catch(f){}
 const aktiverLaden = () => (LADEN && LAEDEN[LADEN]) ? LADEN : "";
 const ladenName = id => id ? ((LAEDEN[id]&&LAEDEN[id].n) || "Laden") : (STANDARDNAME || "Mein Laden");
@@ -690,7 +703,7 @@ function gruppenGeordnet(){
 
 /* ---- Kopie im Gerät, für schlechten Empfang ---- */
 function spiegelSchreiben(){
-  try{ localStorage.setItem(SP_SPIEGEL, JSON.stringify({h:BASIS, u:UEBER, z:ZETTEL, gf:GRUPPENFOLGE, l:LAEDEN, sn:STANDARDNAME})); }catch(f){}
+  try{ localStorage.setItem(SP_SPIEGEL, JSON.stringify({h:BASIS, u:UEBER, z:ZETTEL, gf:GRUPPENFOLGE, l:LAEDEN, sn:STANDARDNAME, w:WEGE})); }catch(f){}
 }
 function spiegelLesen(){
   try{
@@ -699,7 +712,7 @@ function spiegelLesen(){
     const d = JSON.parse(roh);
     if(BASIS && d.h && d.h !== BASIS) return false;   // Kopie gehört einem anderen Haushalt
     UEBER = d.u||{}; ZETTEL = d.z||{}; GRUPPENFOLGE = Array.isArray(d.gf) ? d.gf : null;
-    LAEDEN = d.l||{}; STANDARDNAME = d.sn||null;
+    LAEDEN = d.l||{}; STANDARDNAME = d.sn||null; WEGE = d.w||{};
     return true;
   }catch(f){ return false; }
 }
@@ -811,6 +824,51 @@ function nachSorteOrdnen(ids){
     (sortenWort(ARTIKEL[b].n)===sorte[b]) - (sortenWort(ARTIKEL[a].n)===sorte[a]) ||   // Grundartikel vorn
     ARTIKEL[a].n.localeCompare(ARTIKEL[b].n,"de"));
 }
+/* Mehreres auf einmal: „Milch, Brot, 2 Kästen Bier“ oder diktiert „Milch und zwei Kästen Bier“.
+   Ergibt eine Liste aus {text, eingabe, id}; id ist null, wenn kein Artikel eindeutig passt. */
+function eintraegeLesen(roh){
+  const teile = roh.split(/\s*(?:[,;\n]|\s+und\s+|\s+&\s+)\s*/i)
+                   .map(t=>t.trim().replace(/[.!?]+$/,"")).filter(Boolean);
+  if(teile.length < 2) return null;
+  return teile.map(text=>{
+    const eingabe = sucheLesen(text);
+    return {text, eingabe, id: artikelFinden(eingabe.name)};
+  });
+}
+function artikelFinden(name){
+  const such = name.toLowerCase();
+  if(!such) return null;
+  const ids = Object.keys(ARTIKEL);
+  const genau = ids.find(id=>ARTIKEL[id].n.toLowerCase()===such);
+  if(genau) return genau;
+  const anfang = ids.filter(id=>ARTIKEL[id].n.toLowerCase().startsWith(such));
+  if(anfang.length) return sortiert(anfang)[0];          // „Hack“ → Hackfleisch, „Banane“ → Bananen
+  const drin = ids.filter(id=>ARTIKEL[id].n.toLowerCase().includes(such));
+  return drin.length===1 ? drin[0] : null;
+}
+function alleNotieren(liste){
+  if(schreibsperre()) return;
+  const treffer = liste.filter(x=>x.id);
+  const alt = {};
+  treffer.forEach(({id, eingabe})=>{
+    const a = ARTIKEL[id], p = ZETTEL[id];
+    alt[id] = p || null;
+    if(eingabe.menge!==null){
+      const einheit = eingabe.einheit || (p ? p.einheit : a.e);
+      aendern("artikel/"+id, {m:eingabe.menge, e:einheit});
+      if(p) aendern("zettel/"+id, {menge:eingabe.menge, einheit, ab:false});
+      else  setzen("zettel/"+id, {menge:eingabe.menge, einheit, ab:false, t:Date.now()});
+    }else if(!p) setzen("zettel/"+id, {menge:a.m, einheit:a.e, ab:false, t:Date.now()});
+    else if(p.ab) aendern("zettel/"+id, {ab:false});
+  });
+  merken(treffer.length+" Artikel notieren", ()=>{
+    Object.keys(alt).forEach(id=> alt[id] ? setzen("zettel/"+id, alt[id]) : entfernen("zettel/"+id));
+  });
+  // Was nicht gefunden wurde, bleibt im Suchfeld – zum einzelnen Anlegen
+  $("suche").value = liste.filter(x=>!x.id).map(x=>x.text).join(", ");
+  alleZeigen = false; reihenfolgeVergessen(); kachelnZeichnen();
+}
+
 /* Für neue Artikel: die Gruppe, in der die meisten Artikel derselben Sorte stehen („Basmati-Reis“ → Vorrat) */
 function gruppeVorschlagen(name){
   if(!sortenWort(name)) return null;
@@ -850,8 +908,22 @@ $("rueck").onclick = ()=>{
 
 /* Eingabe im Suchfeld: Menge und Einheit vorn oder hinten, der Rest ist der Name.
    Ergibt {name, menge, einheit}; menge/einheit sind null, wenn keine Zahl dabei ist. */
+/* Diktiertes wie „zwei Kästen Bier“ oder „ein halbes Kilo Hack“: Zahlwörter werden zu Ziffern.
+   Nur wenn danach noch etwas kommt – sonst würde schon das halb getippte „ein“ zur Zahl. */
+const ZAHLWORT = {ein:1, eine:1, einen:1, einem:1, einer:1, eins:1, zwei:2, drei:3, vier:4, fünf:5, sechs:6,
+  sieben:7, acht:8, neun:9, zehn:10, elf:11, zwölf:12, fünfzehn:15, zwanzig:20, dreißig:30, vierzig:40,
+  fünfzig:50, hundert:100, einhundert:100, zweihundert:200, dreihundert:300, vierhundert:400,
+  fünfhundert:500, tausend:1000, anderthalb:1.5, eineinhalb:1.5, zweieinhalb:2.5};
+function zahlenWoerter(text){
+  return text
+    .replace(/(^|\s)(?:(?:ein|eine|einen|einem|einer)\s+)?halbe[nrs]?(?=\s+\S)/giu, "$10,5")
+    .replace(/(^|\s)(\p{L}+)(?=\s+\S)/gu, (alles, vor, wort)=>{
+      const z = ZAHLWORT[wort.toLowerCase()];
+      return z===undefined ? alles : vor+String(z).replace(".",",");
+    });
+}
 function sucheLesen(roh){
-  const text = roh.trim();
+  const text = zahlenWoerter(roh.trim().replace(/[.!?]+$/,""));
   const zahl = z => parseFloat(z.replace(",","."));
   let menge = null, rest = text, m;
   if((m = text.match(/^(\d+(?:[.,]\d+)?)(\s*)(.*)$/)) && m[3] &&
@@ -1107,6 +1179,33 @@ function kachelnZeichnen(){
   const such = feld.toLowerCase();
   $("sucheLeeren").hidden = !roh;
 
+  const kasten = $("kacheln");
+  const liste = eintraegeLesen(roh);
+  if(liste){
+    kasten.innerHTML = "";
+    const treffer = liste.filter(x=>x.id), fehlen = liste.filter(x=>!x.id);
+    const h = document.createElement("div");
+    h.className = "mengenhinweis";
+    h.textContent = treffer.length
+      ? treffer.map(x=>(x.eingabe.menge!==null ? mengeText(x.eingabe.menge, x.eingabe.einheit||ARTIKEL[x.id].e)+" " : "")+ARTIKEL[x.id].n).join(" · ")
+      : "Keinen der Artikel gefunden.";
+    kasten.appendChild(h);
+    if(fehlen.length){
+      const f = document.createElement("div");
+      f.className = "erklaerung";
+      f.textContent = "Nicht gefunden: "+fehlen.map(x=>x.eingabe.name).join(", ")+" – bleibt im Suchfeld zum Anlegen.";
+      kasten.appendChild(f);
+    }
+    if(treffer.length){
+      const b = document.createElement("button");
+      b.className = "kachel neu";
+      b.textContent = treffer.length===1 ? "1 Artikel notieren" : "Alle "+treffer.length+" notieren";
+      b.onclick = ()=>alleNotieren(liste);
+      kasten.appendChild(b);
+    }
+    return;
+  }
+
   let ids, ausgeblendet = 0;
   if(such){
     ids = sortiert(Object.keys(ARTIKEL).filter(id=>ARTIKEL[id].n.toLowerCase().includes(such)));
@@ -1123,7 +1222,6 @@ function kachelnZeichnen(){
   const gekuerzt = (!such && !alleZeigen && ids.length>OBERE);
   const sichtbar = gekuerzt ? ids.slice(0,OBERE) : ids;
 
-  const kasten = $("kacheln");
   kasten.innerHTML = "";
 
   if(eingabe.menge!==null){
@@ -1220,6 +1318,13 @@ function zettelZeichnen(){
     kopf.appendChild(wahl);
   }
   ziel.appendChild(kopf);
+  if(wegVorschlag()){
+    const b = document.createElement("button");
+    b.className = "mehr";
+    b.textContent = "Neue Reihenfolge für „"+ladenName(aktiverLaden())+"“ gelernt – ansehen";
+    b.onclick = einstellungenOeffnen;
+    ziel.appendChild(b);
+  }
 
   gruppenGeordnet().forEach(g=>{
     const sortiert = nachSorteOrdnen(ids.filter(id=>ARTIKEL[id].g===g.id));
@@ -1269,9 +1374,9 @@ function zettelZeichnen(){
       haken.setAttribute("aria-pressed", !!p.ab);
       haken.onclick = ()=>{
         if(schreibsperre()) return;
-        const vorher = !!p.ab;
-        aendern("zettel/"+id, {ab: !vorher});
-        merken(a.n+(vorher ? " wieder öffnen" : " abhaken"), ()=>aendern("zettel/"+id, {ab: vorher}));
+        const vorher = !!p.ab, vorherT = p.abT || null;
+        aendern("zettel/"+id, {ab: !vorher, abT: vorher ? null : Date.now()});   // abT: für den gelernten Weg
+        merken(a.n+(vorher ? " wieder öffnen" : " abhaken"), ()=>aendern("zettel/"+id, {ab: vorher, abT: vorherT}));
       };
 
       const menge = document.createElement("button");
@@ -1539,6 +1644,12 @@ $("frageJa").onclick = async ()=>{
     stapel[BASIS+"artikel/"+id+"/letzte"]  = letzte;
     stapel[BASIS+"zettel/"+id] = null;
   });
+  const weg = wegAusEinkauf(fertig);
+  if(weg.length >= 2){
+    const schluessel = wegSchluessel();
+    stapel[BASIS+"einstellungen/wege/"+schluessel]  = wegeVon(schluessel).concat([weg]).slice(-12);
+    zurueck[BASIS+"einstellungen/wege/"+schluessel] = WEGE[schluessel] ?? null;
+  }
   // abgewählte offene Artikel: nur vom Zettel, ohne Kauf und ohne Spur im Verlauf
   let gestrichen = 0;
   Object.keys(behalten).forEach(id=>{
@@ -1586,9 +1697,10 @@ function einstellungenSchliessen(){
 function einstellungenZeichnen(){
   ladenZeichnen();
   gruppenZeichnen();
+  wegVorschlagZeichnen();
   artikelListeZeichnen();
   const stand = nurLesen ? "ohne Verbindung" : "verbunden";
-  $("einFuss").textContent = "v0.17 · 05.10.2026 · "+stand;
+  $("einFuss").textContent = "v0.18 · 05.10.2026 · "+stand;
 }
 
 function gruppenZeichnen(){
@@ -1637,6 +1749,51 @@ function gruppeSchieben(i,richtung){
 function folgeSetzen(laden, folge){
   if(laden && LAEDEN[laden]){ LAEDEN[laden].gruppen = folge; setzen("einstellungen/laeden/"+laden+"/gruppen", folge); }
   else { GRUPPENFOLGE = folge; setzen("einstellungen/gruppen", folge); }
+}
+
+/* --- Den Weg durch den Laden lernen ---
+   Beim Abschließen wird festgehalten, in welcher Reihenfolge die Gruppen abgehakt wurden.
+   Ab drei Einkäufen schlägt die App eine Reihenfolge vor: jede Gruppe nach ihrer mittleren
+   Stelle im Einkauf. Gruppen, die nie vorkamen, bleiben, wo sie sind. */
+const MIN_WEGE = 3;
+const wegSchluessel = () => aktiverLaden() || "standard";
+function wegeVon(schluessel){
+  const w = WEGE[schluessel];
+  const liste = Array.isArray(w) ? w : (w ? Object.values(w) : []);
+  return liste.map(x=>Array.isArray(x) ? x : Object.values(x||{})).filter(x=>x.length>=2);
+}
+function wegAusEinkauf(fertig){
+  const erste = {};
+  fertig.forEach(id=>{
+    const t = ZETTEL[id].abT, g = ARTIKEL[id].g;
+    if(t && (!erste[g] || t < erste[g])) erste[g] = t;
+  });
+  return Object.keys(erste).sort((x,y)=>erste[x]-erste[y]);
+}
+function wegVorschlag(){
+  const wege = wegeVon(wegSchluessel());
+  if(wege.length < MIN_WEGE) return null;
+  const stellen = {};
+  wege.forEach(w=>w.forEach((g,i)=>{ (stellen[g] = stellen[g]||[]).push(i/(w.length-1)); }));
+  const mittel = g => stellen[g].reduce((a,b)=>a+b,0)/stellen[g].length;
+  const jetzt = gruppenGeordnet().map(g=>g.id);
+  const gelernt = jetzt.filter(g=>stellen[g]).sort((x,y)=>mittel(x)-mittel(y));
+  const neu = jetzt.map(g=>stellen[g] ? gelernt.shift() : g);
+  return neu.join()===jetzt.join() ? null : {folge:neu, anzahl:wege.length};
+}
+function wegVorschlagZeichnen(){
+  const box = $("wegVorschlag"), v = wegVorschlag();
+  box.hidden = !v;
+  if(!v) return;
+  $("wegText").textContent = "Aus euren letzten "+v.anzahl+" Einkäufen in „"+ladenName(aktiverLaden())+"“ gelernt: "+
+    v.folge.map(id=>gruppeVon(id).name).join(" → ");
+  $("wegUebernehmen").onclick = ()=>{
+    if(schreibsperre()) return;
+    const laden = aktiverLaden(), alt = gruppenGeordnet().map(g=>g.id);
+    folgeSetzen(laden, v.folge);
+    merken("Gelernte Reihenfolge übernehmen", ()=>{ folgeSetzen(laden, alt); zeichnen(); });
+    zeichnen();
+  };
 }
 
 /* --- Läden anlegen, umbenennen, löschen --- */
@@ -1842,6 +1999,8 @@ $("suche").addEventListener("input", ()=>{
 /* Enter mit Menge („2 Kästen Bier“): bei eindeutigem Treffer gleich notieren */
 $("suche").addEventListener("keydown", e=>{
   if(e.key!=="Enter") return;
+  const liste = eintraegeLesen($("suche").value);
+  if(liste){ if(liste.some(x=>x.id)) alleNotieren(liste); return; }
   const eingabe = sucheLesen($("suche").value);
   if(eingabe.menge!==null){
     const such = eingabe.name.toLowerCase();
@@ -1902,6 +2061,10 @@ function lauschen(dbMod, db){
   });
   dbMod.onValue(dbMod.ref(db,BASIS+"einstellungen/laeden"), s=>{
     LAEDEN = s.val() || {};
+    spiegelSchreiben(); zeichnen();
+  });
+  dbMod.onValue(dbMod.ref(db,BASIS+"einstellungen/wege"), s=>{
+    WEGE = s.val() || {};
     spiegelSchreiben(); zeichnen();
   });
   dbMod.onValue(dbMod.ref(db,BASIS+"einstellungen/standardname"), s=>{
@@ -1966,7 +2129,7 @@ async function start(){
   $("sperren").onclick = async ()=>{
     merker(false);
     try{ localStorage.removeItem(SP_SPIEGEL); }catch(f){}
-    UEBER = {}; ZETTEL = {}; GRUPPENFOLGE = null; LAEDEN = {}; STANDARDNAME = null; BASIS = "";
+    UEBER = {}; ZETTEL = {}; GRUPPENFOLGE = null; LAEDEN = {}; STANDARDNAME = null; WEGE = {}; BASIS = "";
     try{ localStorage.removeItem(SP_LADEN); }catch(f){}
     try{ await authMod.signOut(auth); }catch(f){}
     location.reload();
