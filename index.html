@@ -3,6 +3,13 @@
   Einkaufszettel
 
   Änderungsliste
+  v0.14 · 05.10.2026 · Bildschirm bleibt an, solange der Zettel offen ist.
+                      Abgehakte rutschen in ihrer Gruppe nach unten.
+                      „Rückgängig“ nach Notieren, Abhaken, Entfernen, Leeren und
+                      Abschließen. Menge direkt ins Suchfeld („2 Kästen Bier“,
+                      „500 g Hack“, „Milch 2 l“). Notiz pro Zettel-Eintrag.
+                      Einheiten passend zur Gruppe, Rest hinter „Mehr“.
+                      Zettel teilen. Dunkelmodus nach Einstellung des Geräts.
   v0.13 · 05.10.2026 · Kein Spalt mehr zwischen Reitern und Suchleiste: die
                       Suchzeile richtet sich nach der tatsächlichen Kopfhöhe.
   v0.12 · 05.10.2026 · Mehr zusammengehörige Artikel stehen gemeinsam: Kaffee,
@@ -57,7 +64,9 @@
 <meta name="robots" content="noindex, nofollow">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Einkaufszettel">
-<meta name="theme-color" content="#2E6F4E">
+<meta name="theme-color" content="#2E6F4E" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#121614" media="(prefers-color-scheme: dark)">
+<meta name="color-scheme" content="light dark">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <title>Einkaufszettel</title>
 <style>
@@ -69,9 +78,41 @@
   --linie:#DEE2DA;
   --akzent:#2E6F4E;
   --akzent-hell:#E2EFE7;
+  --reiter-grund:#E4E7E0;
+  --zaehler-aus:#C3C9BF;
+  --streifen-grund:#F6E9D2;
+  --streifen-text:#6B4A15;
+  --drauf-rand:#B6D5C3;
+  --drauf-text:#1D4F38;
+  --neu-rand:#A9C7B6;
+  --kasten-rand:#B9C0B7;
+  --erledigt:#AAB2A9;
+  --gesperrt:#C6CCC5;
+  --gesperrt-text:#F4F6F2;
+  --warnung:#9A3D2B;
+  --fuss-grund:rgba(241,242,238,.94);
+  --hinweis-grund:#17201A;
+  --hinweis-text:#F2F4F0;
+  --hinweis-knopf:#9ED3B5;
   --rand:14px;
   --sicher-oben:env(safe-area-inset-top);
   --sicher-unten:env(safe-area-inset-bottom);
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --papier:#121614; --karte:#1C211E; --tinte:#E6EAE6; --matt:#98A19B; --linie:#2D3430;
+    --akzent:#43936A; --akzent-hell:#1E3529;
+    --reiter-grund:#232925; --zaehler-aus:#4A524D;
+    --streifen-grund:#3A2F1C; --streifen-text:#EBCB95;
+    --drauf-rand:#2F5A43; --drauf-text:#BFE3CE; --neu-rand:#3B6A51;
+    --kasten-rand:#59635D; --erledigt:#5E6761;
+    --gesperrt:#343B37; --gesperrt-text:#7D857F;
+    --warnung:#E58A74;
+    --fuss-grund:rgba(18,22,20,.92);
+    --hinweis-grund:#E6EAE6; --hinweis-text:#17201A; --hinweis-knopf:#2E6F4E;
+    color-scheme:dark;
+  }
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{margin:0;padding:0}
@@ -98,7 +139,7 @@ button{background:none;border:0;padding:0;cursor:pointer}
   width:100%;min-height:52px;padding:0 14px;margin-bottom:12px;
   border:1px solid var(--linie);border-radius:var(--rand);background:var(--karte);
 }
-.schloss .fehler{color:#9A3D2B;font-size:15px;margin:0 0 12px;min-height:20px}
+.schloss .fehler{color:var(--warnung);font-size:15px;margin:0 0 12px;min-height:20px}
 .schlossfuss{margin-top:20px;font-size:12px;color:var(--matt)}
 
 /* ---------- Kopf ---------- */
@@ -112,17 +153,17 @@ button{background:none;border:0;padding:0;cursor:pointer}
 .fassung{font-size:13px;color:var(--matt);white-space:nowrap}
 .funk{width:9px;height:9px;border-radius:50%;background:var(--akzent);flex:none}
 .funk[data-aus="1"]{background:#C8862F}
-.reiter{display:flex;gap:6px;margin:12px 0 0;padding:4px;background:#E4E7E0;border-radius:var(--rand)}
+.reiter{display:flex;gap:6px;margin:12px 0 0;padding:4px;background:var(--reiter-grund);border-radius:var(--rand)}
 .reiter button{
   flex:1;min-height:40px;border-radius:10px;font-size:15px;font-weight:550;color:var(--matt);
 }
 .reiter button[aria-selected="true"]{background:var(--karte);color:var(--tinte);box-shadow:0 1px 2px rgba(0,0,0,.10)}
 .zaehler{display:inline-block;min-width:20px;margin-left:6px;padding:0 6px;border-radius:10px;
   background:var(--akzent);color:#fff;font-size:12px;line-height:19px;font-weight:600;vertical-align:1px}
-.reiter button[aria-selected="false"] .zaehler{background:#C3C9BF;color:#fff}
+.reiter button[aria-selected="false"] .zaehler{background:var(--zaehler-aus);color:#fff}
 .streifen{
   margin:10px 0 0;padding:9px 12px;border-radius:12px;
-  background:#F6E9D2;color:#6B4A15;font-size:14px;
+  background:var(--streifen-grund);color:var(--streifen-text);font-size:14px;
 }
 .zahnrad{display:flex;align-items:center;color:var(--matt);padding:6px;margin:-6px}
 .zahnrad[data-auf="1"]{color:var(--akzent)}
@@ -141,7 +182,7 @@ button{background:none;border:0;padding:0;cursor:pointer}
   width:40px;height:40px;border-radius:10px;color:var(--akzent);
   display:flex;align-items:center;justify-content:center;font-size:19px;
 }
-.pfeil[disabled]{color:#C6CCC5}
+.pfeil[disabled]{color:var(--gesperrt)}
 .zeile .nebentext{padding:0 14px;font-size:14px;color:var(--matt);display:flex;align-items:center;white-space:nowrap}
 .zeile[data-aus="1"] .name{color:var(--matt)}
 
@@ -165,9 +206,9 @@ button{background:none;border:0;padding:0;cursor:pointer}
 }
 .kachel .punkt{width:8px;height:8px;border-radius:50%;flex:none}
 .kachel[data-faellig="1"]{border-color:var(--akzent);box-shadow:inset 0 0 0 1px var(--akzent)}
-.kachel[data-drauf="1"]{background:var(--akzent-hell);border-color:#B6D5C3;color:#1D4F38;box-shadow:none}
+.kachel[data-drauf="1"]{background:var(--akzent-hell);border-color:var(--drauf-rand);color:var(--drauf-text);box-shadow:none}
 .kachel .menge{font-size:13px;font-weight:600;color:var(--akzent);white-space:nowrap}
-.kachel.neu{background:var(--karte);border-style:dashed;color:var(--akzent);border-color:#A9C7B6}
+.kachel.neu{background:var(--karte);border-style:dashed;color:var(--akzent);border-color:var(--neu-rand)}
 .mehr{width:100%;min-height:44px;margin-top:4px;color:var(--akzent);font-size:15px;font-weight:550}
 .leer{padding:28px 4px;color:var(--matt);font-size:15px}
 
@@ -185,28 +226,33 @@ button{background:none;border:0;padding:0;cursor:pointer}
   flex:1;display:flex;align-items:center;gap:12px;min-height:52px;padding:8px 4px 8px 14px;text-align:left;
 }
 .kasten{
-  width:22px;height:22px;flex:none;border:1.5px solid #B9C0B7;border-radius:7px;
+  width:22px;height:22px;flex:none;border:1.5px solid var(--kasten-rand);border-radius:7px;
   display:flex;align-items:center;justify-content:center;
 }
 .zeile[data-ab="1"] .kasten{background:var(--akzent);border-color:var(--akzent)}
 .zeile[data-ab="1"] .kasten::after{content:"";width:11px;height:6px;border-left:2px solid #fff;border-bottom:2px solid #fff;transform:rotate(-45deg) translate(1px,-2px)}
 .zeile[data-ab="1"] .name{text-decoration:line-through;color:var(--matt)}
 .name{font-size:17px}
+.textblock{display:flex;flex-direction:column;min-width:0}
+.notiz{font-size:13px;color:var(--matt);margin-top:1px}
+.zeile[data-ab="1"] .notiz{color:var(--erledigt)}
+.mengenhinweis{width:100%;font-size:14px;color:var(--akzent);font-weight:600;padding:2px 2px 4px}
+.einheitmehr{color:var(--akzent);font-weight:600}
 .mengenknopf{
   min-width:78px;padding:0 14px;text-align:right;font-size:15px;font-weight:600;color:var(--akzent);
 }
-.zeile[data-ab="1"] .mengenknopf{color:#AAB2A9}
+.zeile[data-ab="1"] .mengenknopf{color:var(--erledigt)}
 
 .fussleiste{
   position:fixed;left:0;right:0;bottom:0;z-index:30;
   padding:10px 16px calc(10px + var(--sicher-unten));
-  background:rgba(241,242,238,.94);backdrop-filter:blur(10px);border-top:1px solid var(--linie);
+  background:var(--fuss-grund);backdrop-filter:blur(10px);border-top:1px solid var(--linie);
 }
 .hauptknopf{
   width:100%;min-height:52px;border-radius:var(--rand);background:var(--akzent);color:#fff;
   font-size:17px;font-weight:600;
 }
-.hauptknopf[disabled]{background:#C6CCC5;color:#F4F6F2}
+.hauptknopf[disabled]{background:var(--gesperrt);color:var(--gesperrt-text)}
 
 /* ---------- Blatt von unten ---------- */
 .schleier{position:fixed;inset:0;z-index:40;background:rgba(15,22,18,.34);opacity:0;pointer-events:none;transition:opacity .18s}
@@ -243,15 +289,18 @@ button{background:none;border:0;padding:0;cursor:pointer}
 .namensfeld{width:100%;min-height:50px;padding:0 14px;border:1px solid var(--linie);border-radius:var(--rand);background:var(--karte);margin-bottom:16px}
 .sheetknoepfe{display:flex;gap:10px}
 .sheetknoepfe button{flex:1;min-height:52px;border-radius:var(--rand);font-size:17px;font-weight:600}
-.weg{background:var(--karte);border:1px solid var(--linie);color:#9A3D2B}
+.weg{background:var(--karte);border:1px solid var(--linie);color:var(--warnung)}
 .ok{background:var(--akzent);color:#fff}
 .hinweis{
   position:fixed;left:16px;right:16px;bottom:calc(84px + var(--sicher-unten));z-index:50;
-  padding:12px 16px;border-radius:var(--rand);background:var(--tinte);color:#F2F4F0;
+  display:flex;align-items:center;justify-content:center;gap:14px;
+  padding:12px 16px;border-radius:var(--rand);background:var(--hinweis-grund);color:var(--hinweis-text);
   font-size:15px;text-align:center;opacity:0;transform:translateY(6px);
   transition:opacity .16s,transform .16s;pointer-events:none;
 }
 .hinweis[data-auf="1"]{opacity:1;transform:none}
+.hinweis[data-auf="1"] .zurueck{pointer-events:auto}
+.zurueck{flex:none;margin:-10px -6px -10px 0;padding:10px 6px;color:var(--hinweis-knopf);font-weight:650}
 
 @media (min-width:700px){
   .kopf,.blatt,.fussleiste{max-width:680px;margin-left:auto;margin-right:auto}
@@ -272,7 +321,7 @@ button{background:none;border:0;padding:0;cursor:pointer}
          placeholder="Passwort" aria-label="Passwort">
   <p class="fehler" id="schlossFehler"></p>
   <button class="hauptknopf" id="anmelden">Anmelden</button>
-  <p class="schlossfuss">v0.13 · 05.10.2026</p>
+  <p class="schlossfuss">v0.14 · 05.10.2026</p>
 </div>
 
 <div id="app" hidden>
@@ -357,6 +406,9 @@ button{background:none;border:0;padding:0;cursor:pointer}
   </div>
   <label for="mengeEinheiten">Einheit</label>
   <div class="wahl" id="mengeEinheiten"></div>
+  <label for="mengeNotiz">Notiz</label>
+  <input class="namensfeld" id="mengeNotiz" autocomplete="off" maxlength="80"
+         placeholder="z. B. nur Bio, die rote Marke">
   <div class="sheetknoepfe">
     <button class="weg" id="mengeWeg">Vom Zettel</button>
     <button class="ok" id="mengeOk">Übernehmen</button>
@@ -451,6 +503,19 @@ const EINHEITEN = ["Stk","g","kg","ml","l","Pkg","Flasche","Dose","Glas","Bund",
 const MEHRZAHL = {Flasche:"Flaschen", Dose:"Dosen", Glas:"Gläser", Kasten:"Kästen", Tüte:"Tüten",
                   Schale:"Schalen", Rolle:"Rollen", Tafel:"Tafeln", Tube:"Tuben"};
 const einheitWort = (einheit, menge) => (menge===1 ? einheit : (MEHRZAHL[einheit]||einheit));
+/* Was im Mengenblatt zuerst angeboten wird; der Rest steht hinter „Mehr“ */
+const EINHEITEN_JE_GRUPPE = {
+  og:["Stk","g","kg","Bund","Schale","Beutel"], bw:["Stk","Pkg","Tüte"], fw:["g","kg","Stk","Pkg"],
+  km:["Stk","Becher","Pkg","g","l"], tk:["Pkg","Stk","Beutel"], vr:["Pkg","Dose","Glas","Flasche","Tüte","Tube"],
+  ss:["Pkg","Tüte","Tafel","Stk"], gt:["Flasche","Kasten","l","Dose","Pkg"], hd:["Stk","Pkg","Flasche","Rolle","Tube"]
+};
+/* Wie man Einheiten beim Suchen tippt: „2 Kästen Bier“, „500g Hack“, „3x Joghurt“ */
+const EINHEIT_AUS_WORT = {};
+EINHEITEN.forEach(e=>{ EINHEIT_AUS_WORT[e.toLowerCase()] = e; });
+Object.keys(MEHRZAHL).forEach(e=>{ EINHEIT_AUS_WORT[MEHRZAHL[e].toLowerCase()] = e; });
+Object.entries({stück:"Stk", st:"Stk", x:"Stk", "×":"Stk", gr:"g", gramm:"g", kilo:"kg", kilogramm:"kg",
+  milliliter:"ml", liter:"l", ltr:"l", pck:"Pkg", pack:"Pkg", packung:"Pkg", packungen:"Pkg", päckchen:"Pkg",
+  fl:"Flasche", kiste:"Kasten", kisten:"Kasten", bunde:"Bund"}).forEach(([w,e])=>{ EINHEIT_AUS_WORT[w] = e; });
 
 /* ============ Grundstock: [Name, Einheit, Grundgewicht 1–3] ============ */
 const KATALOG = {
@@ -680,11 +745,41 @@ function nachSorteOrdnen(ids){
     ARTIKEL[a].n.localeCompare(ARTIKEL[b].n,"de"));
 }
 let hinweisUhr = null;
-function melden(text){
+/* Kurzer Hinweis unten; mit „zurueck“ gibt es einen Knopf „Rückgängig“ und etwas mehr Zeit */
+function melden(text, zurueck){
   const h = $("hinweis");
-  h.textContent = text; h.dataset.auf = "1";
+  h.innerHTML = "";
+  const t = document.createElement("span"); t.textContent = text;
+  h.appendChild(t);
+  if(zurueck){
+    const b = document.createElement("button");
+    b.className = "zurueck"; b.textContent = "Rückgängig";
+    b.onclick = ()=>{ clearTimeout(hinweisUhr); h.dataset.auf = "0"; zurueck(); };
+    h.appendChild(b);
+  }
+  h.dataset.auf = "1";
   clearTimeout(hinweisUhr);
-  hinweisUhr = setTimeout(()=>{ h.dataset.auf = "0"; }, 1600);
+  hinweisUhr = setTimeout(()=>{ h.dataset.auf = "0"; }, zurueck ? 4500 : 1600);
+}
+
+/* Eingabe im Suchfeld: Menge und Einheit vorn oder hinten, der Rest ist der Name.
+   Ergibt {name, menge, einheit}; menge/einheit sind null, wenn keine Zahl dabei ist. */
+function sucheLesen(roh){
+  const text = roh.trim();
+  const zahl = z => parseFloat(z.replace(",","."));
+  let menge = null, rest = text, m;
+  if((m = text.match(/^(\d+(?:[.,]\d+)?)(\s*)(.*)$/)) && m[3] &&
+     (m[2] || EINHEIT_AUS_WORT[(m[3].split(/\s/)[0]||"").toLowerCase()])){   // „7up“ bleibt ein Name
+    menge = zahl(m[1]); rest = m[3];
+  }else if((m = text.match(/^(.+?)\s+(\d+(?:[.,]\d+)?)\s*([^\s\d]*)$/))){
+    menge = zahl(m[2]); rest = m[3] ? m[3]+" "+m[1] : m[1];
+  }
+  if(menge===null || !(menge>0)) return {name:text, menge:null, einheit:null};
+  let einheit = null;
+  const t = rest.match(/^([^\s\d]+?)\.?\s+(.+)$/);
+  if(t && EINHEIT_AUS_WORT[t[1].toLowerCase()]){ einheit = EINHEIT_AUS_WORT[t[1].toLowerCase()]; rest = t[2].trim(); }
+  if(!rest) return {name:text, menge:null, einheit:null};
+  return {name:rest, menge, einheit};
 }
 function streifen(text){
   const s = $("streifen");
@@ -875,6 +970,21 @@ function geordnet(){
   return reihenfolge;
 }
 
+/* Im Laden: solange der Zettel offen ist, geht der Bildschirm nicht aus */
+let wachSperre = null;
+async function wachHalten(){
+  const soll = ansicht==="zet" && document.visibilityState==="visible" && !$("app").hidden;
+  try{
+    if(soll && !wachSperre && navigator.wakeLock){
+      wachSperre = await navigator.wakeLock.request("screen");
+      wachSperre.addEventListener("release", ()=>{ wachSperre = null; });
+    }else if(!soll && wachSperre){
+      const w = wachSperre; wachSperre = null; await w.release();
+    }
+  }catch(f){}   // nicht unterstützt oder abgelehnt: dann eben nicht
+}
+document.addEventListener("visibilitychange", wachHalten);
+
 function reiterSetzen(neu){
   ansicht = neu;
   if(neu==="vor"){ reihenfolgeVergessen(); saisonZeigen = false; }
@@ -889,6 +999,7 @@ function reiterSetzen(neu){
   $("fussleiste").hidden = neu!=="zet";
   window.scrollTo(0,0);
   zeichnen();
+  wachHalten();
 }
 
 function zeichnen(){
@@ -904,9 +1015,11 @@ function zeichnen(){
 }
 
 function kachelnZeichnen(){
-  const feld = $("suche").value.trim();
+  const roh = $("suche").value.trim();
+  const eingabe = sucheLesen(roh);
+  const feld = eingabe.name;
   const such = feld.toLowerCase();
-  $("sucheLeeren").hidden = !feld;
+  $("sucheLeeren").hidden = !roh;
 
   let ids, ausgeblendet = 0;
   if(such){
@@ -927,12 +1040,19 @@ function kachelnZeichnen(){
   const kasten = $("kacheln");
   kasten.innerHTML = "";
 
+  if(eingabe.menge!==null){
+    const h = document.createElement("div");
+    h.className = "mengenhinweis";
+    h.textContent = (eingabe.einheit ? mengeText(eingabe.menge, eingabe.einheit) : String(eingabe.menge).replace(".",",")+" ×")+
+                    " – Artikel antippen";
+    kasten.appendChild(h);
+  }
   const treffer = feld && ids.some(id=>ARTIKEL[id].n.toLowerCase()===such);
   if(feld && !treffer){
     const b = document.createElement("button");
     b.className = "kachel neu";
     b.textContent = "„"+feld+"“ anlegen";
-    b.onclick = ()=>{ if(!schreibsperre()) neuOeffnen(feld); };
+    b.onclick = ()=>{ if(!schreibsperre()) neuOeffnen(feld, eingabe); };
     kasten.appendChild(b);
   }
 
@@ -951,7 +1071,8 @@ function kachelnZeichnen(){
       m.className = "menge"; m.textContent = mengeText(p.menge,p.einheit);
       b.appendChild(m);
     }
-    b.onclick = ()=> p ? mengeOeffnen(id) : aufDenZettel(id);
+    b.onclick = ()=> eingabe.menge!==null ? mitMengeNotieren(id, eingabe)
+                                          : (p ? mengeOeffnen(id) : aufDenZettel(id));
     kasten.appendChild(b);
   });
 
@@ -990,7 +1111,8 @@ function zettelZeichnen(){
     return;
   }
   gruppenGeordnet().forEach(g=>{
-    const posten = nachSorteOrdnen(ids.filter(id=>ARTIKEL[id].g===g.id));
+    const sortiert = nachSorteOrdnen(ids.filter(id=>ARTIKEL[id].g===g.id));
+    const posten = sortiert.filter(id=>!ZETTEL[id].ab).concat(sortiert.filter(id=>ZETTEL[id].ab));
     if(!posten.length) return;
 
     const kasten = document.createElement("section");
@@ -1012,10 +1134,21 @@ function zettelZeichnen(){
       const haken = document.createElement("button");
       haken.className = "haken";
       const kast = document.createElement("span"); kast.className = "kasten";
+      const block = document.createElement("span"); block.className = "textblock";
       const name = document.createElement("span"); name.className = "name"; name.textContent = a.n;
-      haken.appendChild(kast); haken.appendChild(name);
+      block.appendChild(name);
+      if(p.notiz){
+        const notiz = document.createElement("span"); notiz.className = "notiz"; notiz.textContent = p.notiz;
+        block.appendChild(notiz);
+      }
+      haken.appendChild(kast); haken.appendChild(block);
       haken.setAttribute("aria-pressed", !!p.ab);
-      haken.onclick = ()=>{ if(!schreibsperre()) aendern("zettel/"+id, {ab: !p.ab}); };
+      haken.onclick = ()=>{
+        if(schreibsperre()) return;
+        const vorher = !!p.ab;
+        aendern("zettel/"+id, {ab: !vorher});
+        melden(a.n+(vorher ? " wieder offen" : " abgehakt"), ()=>aendern("zettel/"+id, {ab: vorher}));
+      };
 
       const menge = document.createElement("button");
       menge.className = "mengenknopf";
@@ -1029,6 +1162,34 @@ function zettelZeichnen(){
     kasten.appendChild(liste);
     ziel.appendChild(kasten);
   });
+  const teilen = document.createElement("button");
+  teilen.className = "mehr";
+  teilen.textContent = "Zettel teilen";
+  teilen.onclick = zettelTeilen;
+  ziel.appendChild(teilen);
+}
+
+/* Offene Artikel als Text, nach Gruppen und Sorten – für WhatsApp, Nachrichten, Mail */
+async function zettelTeilen(){
+  const offen = zettelListe().filter(id=>!ZETTEL[id].ab);
+  if(!offen.length){ melden("Auf dem Zettel ist nichts mehr offen."); return; }
+  const teile = ["Einkaufszettel"];
+  gruppenGeordnet().forEach(g=>{
+    const posten = nachSorteOrdnen(offen.filter(id=>ARTIKEL[id].g===g.id));
+    if(!posten.length) return;
+    teile.push("", g.name);
+    posten.forEach(id=>{
+      const p = ZETTEL[id];
+      teile.push("• "+ARTIKEL[id].n+" – "+mengeText(p.menge,p.einheit)+(p.notiz ? " ("+p.notiz+")" : ""));
+    });
+  });
+  const text = teile.join("\n");
+  if(navigator.share){
+    try{ await navigator.share({text}); }catch(f){}   // abgebrochen: nichts zu tun
+    return;
+  }
+  try{ await navigator.clipboard.writeText(text); melden("Zettel kopiert"); }
+  catch(f){ melden("Teilen geht auf diesem Gerät nicht."); }
 }
 
 /* ============ Zettel füllen ============ */
@@ -1036,7 +1197,23 @@ function aufDenZettel(id){
   if(schreibsperre()) return;
   const a = ARTIKEL[id];
   setzen("zettel/"+id, {menge:a.m, einheit:a.e, ab:false, t:Date.now()});
-  melden(a.n+", "+mengeText(a.m,a.e)+" notiert");
+  melden(a.n+", "+mengeText(a.m,a.e)+" notiert", ()=>entfernen("zettel/"+id));
+}
+/* Aus dem Suchfeld mit Menge („2 Kästen Bier“): direkt notieren, auch als Vorschlag fürs nächste Mal */
+function mitMengeNotieren(id, eingabe){
+  if(schreibsperre()) return;
+  const a = ARTIKEL[id], p = ZETTEL[id];
+  const einheit = eingabe.einheit || (p ? p.einheit : a.e);
+  aendern("artikel/"+id, {m:eingabe.menge, e:einheit});
+  if(p){
+    const alt = {menge:p.menge, einheit:p.einheit};
+    aendern("zettel/"+id, {menge:eingabe.menge, einheit});
+    melden(a.n+" jetzt "+mengeText(eingabe.menge,einheit), ()=>aendern("zettel/"+id, alt));
+  }else{
+    setzen("zettel/"+id, {menge:eingabe.menge, einheit, ab:false, t:Date.now()});
+    melden(a.n+", "+mengeText(eingabe.menge,einheit)+" notiert", ()=>entfernen("zettel/"+id));
+  }
+  $("suche").value = ""; alleZeigen = false; reihenfolgeVergessen(); kachelnZeichnen();
 }
 
 /* ============ Blätter ============ */
@@ -1061,21 +1238,34 @@ function mengeOeffnen(id){
                                 (p ? "" : " · noch nicht auf dem Zettel");
   $("mengeFeld").value = String(p ? p.menge : a.m).replace(".",",");
   $("mengeWeg").hidden = !p;
-  einheitenZeichnen($("mengeEinheiten"), mengeEinheit, e=>{ mengeEinheit = e; });
+  $("mengeNotiz").value = (p && p.notiz) || "";
+  einheitenZeichnen($("mengeEinheiten"), mengeEinheit, e=>{ mengeEinheit = e; }, a.g);
   blattOeffnen($("sheetMenge"));
 }
-function einheitenZeichnen(kasten, gewaehlt, beiWahl){
+/* Zuerst die Einheiten, die zur Gruppe passen (plus die gewählte), der Rest hinter „Mehr“ */
+function einheitenZeichnen(kasten, gewaehlt, beiWahl, gruppe, alle){
   kasten.innerHTML = "";
-  EINHEITEN.forEach(e=>{
+  const passend = EINHEITEN_JE_GRUPPE[gruppe];
+  const zeigen = (alle || !passend) ? EINHEITEN
+               : EINHEITEN.filter(e=>passend.includes(e) || e===gewaehlt);
+  zeigen.forEach(e=>{
     const b = document.createElement("button");
     b.textContent = e;
     b.setAttribute("aria-pressed", e===gewaehlt);
     b.onclick = ()=>{
+      gewaehlt = e;
       beiWahl(e);
-      [...kasten.children].forEach(c=>c.setAttribute("aria-pressed", c===b));
+      [...kasten.children].forEach(c=>{ if(c.dataset.mehr!=="1") c.setAttribute("aria-pressed", c===b); });
     };
     kasten.appendChild(b);
   });
+  if(zeigen.length < EINHEITEN.length){
+    const mehr = document.createElement("button");
+    mehr.className = "einheitmehr"; mehr.dataset.mehr = "1";
+    mehr.textContent = "Mehr …";
+    mehr.onclick = ()=>einheitenZeichnen(kasten, gewaehlt, beiWahl, gruppe, true);
+    kasten.appendChild(mehr);
+  }
 }
 function mengeLesen(){
   const w = parseFloat((($("mengeFeld").value)||"").replace(",","."));
@@ -1087,20 +1277,24 @@ $("mengePlus").onclick = ()=>mengeSchreiben(mengeLesen()+schritt());
 $("mengeMinus").onclick = ()=>mengeSchreiben(Math.max(schritt(), mengeLesen()-schritt()));
 $("mengeOk").onclick = ()=>{
   const w = mengeLesen(), p = ZETTEL[mengeId];
+  const notiz = $("mengeNotiz").value.trim() || null;     // gilt nur für diesen Einkauf
   aendern("artikel/"+mengeId, {m:w, e:mengeEinheit});     // Vorschlag fürs nächste Mal
-  if(p) aendern("zettel/"+mengeId, {menge:w, einheit:mengeEinheit});
-  else  setzen("zettel/"+mengeId, {menge:w, einheit:mengeEinheit, ab:false, t:Date.now()});
+  if(p) aendern("zettel/"+mengeId, {menge:w, einheit:mengeEinheit, notiz});
+  else  setzen("zettel/"+mengeId, {menge:w, einheit:mengeEinheit, notiz, ab:false, t:Date.now()});
   blattSchliessen();
 };
+$("mengeNotiz").addEventListener("keydown", e=>{ if(e.key==="Enter") $("mengeOk").click(); });
 $("mengeWeg").onclick = ()=>{
-  const name = ARTIKEL[mengeId].n;
-  entfernen("zettel/"+mengeId);
+  const id = mengeId, name = ARTIKEL[id].n, alt = ZETTEL[id];
+  entfernen("zettel/"+id);
   blattSchliessen();
-  melden(name+" vom Zettel");
+  melden(name+" vom Zettel", ()=>setzen("zettel/"+id, alt));
 };
 
-function neuOeffnen(name){
-  neuGruppe = null; neuEinheit = "Stk";
+let neuVorgabe = null;   // Menge/Einheit aus dem Suchfeld („2 Kästen Limo“)
+function neuOeffnen(name, eingabe){
+  neuVorgabe = (eingabe && eingabe.menge!==null) ? eingabe : null;
+  neuGruppe = null; neuEinheit = (neuVorgabe && neuVorgabe.einheit) || "Stk";
   $("neuName").value = name;
   const kasten = $("neuGruppen");
   kasten.innerHTML = "";
@@ -1113,10 +1307,11 @@ function neuOeffnen(name){
     b.onclick = ()=>{
       neuGruppe = g.id;
       [...kasten.children].forEach(c=>c.setAttribute("aria-pressed", c===b));
+      einheitenZeichnen($("neuEinheiten"), neuEinheit, e=>{ neuEinheit = e; }, neuGruppe);
     };
     kasten.appendChild(b);
   });
-  einheitenZeichnen($("neuEinheiten"), neuEinheit, e=>{ neuEinheit = e; });
+  einheitenZeichnen($("neuEinheiten"), neuEinheit, e=>{ neuEinheit = e; }, null, true);
   blattOeffnen($("sheetNeu"));
 }
 $("neuAbbruch").onclick = blattSchliessen;
@@ -1127,11 +1322,12 @@ $("neuOk").onclick = ()=>{
   const id = kennung(name);
   const schon = !!ARTIKEL[id];
   if(!schon){
-    setzen("artikel/"+id, {n:name, g:neuGruppe, e:neuEinheit, w:2, m:standardMenge(neuEinheit),
+    setzen("artikel/"+id, {n:name, g:neuGruppe, e:neuEinheit, w:2,
+                           m:neuVorgabe ? neuVorgabe.menge : standardMenge(neuEinheit),
                            kaeufe:0, zuletzt:0, angelegt:Date.now(), eigen:true});
   }
-  const menge = schon ? ARTIKEL[id].m : standardMenge(neuEinheit);
-  const einheit = schon ? ARTIKEL[id].e : neuEinheit;
+  const menge = neuVorgabe ? neuVorgabe.menge : (schon ? ARTIKEL[id].m : standardMenge(neuEinheit));
+  const einheit = schon ? ((neuVorgabe && neuVorgabe.einheit) || ARTIKEL[id].e) : neuEinheit;
   if(!ZETTEL[id]) setzen("zettel/"+id, {menge:menge, einheit:einheit, ab:false, t:Date.now()});
   $("suche").value = ""; alleZeigen = false;
   blattSchliessen();
@@ -1191,9 +1387,13 @@ $("frageNein").onclick = blattSchliessen;
 $("frageJa").onclick = async ()=>{
   const jetzt = Date.now();
   const fertig = abgehakte();
-  const stapel = {};
+  const stapel = {}, zurueck = {};
   fertig.forEach(id=>{
-    const a = ARTIKEL[id];
+    const a = ARTIKEL[id], q = UEBER[id] || {};
+    zurueck[BASIS+"artikel/"+id+"/kaeufe"]  = q.kaeufe  ?? null;
+    zurueck[BASIS+"artikel/"+id+"/zuletzt"] = q.zuletzt ?? null;
+    zurueck[BASIS+"artikel/"+id+"/letzte"]  = q.letzte  ?? null;
+    zurueck[BASIS+"zettel/"+id] = ZETTEL[id];
     const letzte = (a.letzte||[]).concat(jetzt).slice(-100);  // gut zwei bis drei Jahre, Grundlage für Rhythmus und Saison
     stapel[BASIS+"artikel/"+id+"/kaeufe"]  = (a.kaeufe||0)+1;
     stapel[BASIS+"artikel/"+id+"/zuletzt"] = jetzt;
@@ -1203,14 +1403,19 @@ $("frageJa").onclick = async ()=>{
   // abgewählte offene Artikel: nur vom Zettel, ohne Kauf und ohne Spur im Verlauf
   let gestrichen = 0;
   Object.keys(behalten).forEach(id=>{
-    if(!behalten[id] && ZETTEL[id]){ stapel[BASIS+"zettel/"+id] = null; gestrichen++; }
+    if(!behalten[id] && ZETTEL[id]){
+      stapel[BASIS+"zettel/"+id] = null; zurueck[BASIS+"zettel/"+id] = ZETTEL[id]; gestrichen++;
+    }
   });
 
   blattSchliessen();
   reihenfolgeVergessen();
   try{
     await F.update(F.ref(F.db), stapel);
-    melden(fertig.length+" Artikel eingekauft"+(gestrichen ? ", "+gestrichen+" gestrichen" : ""));
+    melden(fertig.length+" Artikel eingekauft"+(gestrichen ? ", "+gestrichen+" gestrichen" : ""), async ()=>{
+      try{ await F.update(F.ref(F.db), zurueck); reihenfolgeVergessen(); }
+      catch(f){ melden("Konnte nicht gespeichert werden."); }
+    });
   }catch(f){ melden("Konnte nicht gespeichert werden."); }
 };
 
@@ -1229,6 +1434,7 @@ function einstellungenOeffnen(){
   ausgeblendeteZeigen = false;
   window.scrollTo(0,0);
   einstellungenZeichnen();
+  wachHalten();
 }
 function einstellungenSchliessen(){
   $("zahnrad").dataset.auf = "0";
@@ -1242,7 +1448,7 @@ function einstellungenZeichnen(){
   gruppenZeichnen();
   artikelListeZeichnen();
   const stand = nurLesen ? "ohne Verbindung" : "verbunden";
-  $("einFuss").textContent = "v0.13 · 05.10.2026 · "+stand;
+  $("einFuss").textContent = "v0.14 · 05.10.2026 · "+stand;
 }
 
 function gruppenZeichnen(){
@@ -1366,10 +1572,11 @@ function artikelOeffnen(id){
     b.onclick = ()=>{
       artGruppe = g.id;
       [...kasten.children].forEach(c=>c.setAttribute("aria-pressed", c===b));
+      einheitenZeichnen($("artEinheiten"), artEinheit, e=>{ artEinheit = e; }, artGruppe);
     };
     kasten.appendChild(b);
   });
-  einheitenZeichnen($("artEinheiten"), artEinheit, e=>{ artEinheit = e; });
+  einheitenZeichnen($("artEinheiten"), artEinheit, e=>{ artEinheit = e; }, artGruppe);
   blattOeffnen($("sheetArtikel"));
 }
 $("artOk").onclick = ()=>{
@@ -1399,9 +1606,10 @@ $("zettelLeeren").onclick = ()=>{
 };
 $("leerenNein").onclick = blattSchliessen;
 $("leerenJa").onclick = ()=>{
+  const alt = ZETTEL;
   entfernen("zettel");
   blattSchliessen();
-  melden("Zettel geleert");
+  melden("Zettel geleert", ()=>setzen("zettel", alt));
 };
 
 $("zahnrad").onclick = ()=>{ ansicht==="ein" ? einstellungenSchliessen() : einstellungenOeffnen(); };
@@ -1416,7 +1624,19 @@ $("suche").addEventListener("input", ()=>{
   if(!$("suche").value.trim()) reihenfolgeVergessen();
   kachelnZeichnen();
 });
-$("suche").addEventListener("keydown", e=>{ if(e.key==="Enter") e.target.blur(); });
+/* Enter mit Menge („2 Kästen Bier“): bei eindeutigem Treffer gleich notieren */
+$("suche").addEventListener("keydown", e=>{
+  if(e.key!=="Enter") return;
+  const eingabe = sucheLesen($("suche").value);
+  if(eingabe.menge!==null){
+    const such = eingabe.name.toLowerCase();
+    const ids = Object.keys(ARTIKEL).filter(id=>ARTIKEL[id].n.toLowerCase().includes(such));
+    const genau = ids.find(id=>ARTIKEL[id].n.toLowerCase()===such);
+    const id = genau || (ids.length===1 ? ids[0] : null);
+    if(id){ mitMengeNotieren(id, eingabe); return; }
+  }
+  e.target.blur();
+});
 $("sucheLeeren").onclick = ()=>{
   $("suche").value=""; alleZeigen=false; reihenfolgeVergessen(); kachelnZeichnen(); $("suche").focus();
 };
