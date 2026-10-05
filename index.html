@@ -3,6 +3,10 @@
   Einkaufszettel
 
   Änderungsliste
+  v0.9 · 05.10.2026 · Neue Einheiten: Kasten, Becher, Tüte, Beutel, Schale, Rolle,
+                      Tafel, Tube. Einheiten stehen jetzt in Ein- oder Mehrzahl
+                      passend zur Menge (1 Kasten, 2 Kästen). Grundstock teils
+                      umgestellt (Wasser/Bier im Kasten, Joghurt im Becher …).
   v0.8 · 05.09.2026 · Mehrere Haushalte in einem Firebase-Projekt: alle Daten
                       liegen unter haushalte/<uid>/, am Schlossbildschirm ein
                       zweites Feld für den Haushalt (Name + @einkauf.local),
@@ -258,7 +262,7 @@ button{background:none;border:0;padding:0;cursor:pointer}
          placeholder="Passwort" aria-label="Passwort">
   <p class="fehler" id="schlossFehler"></p>
   <button class="hauptknopf" id="anmelden">Anmelden</button>
-  <p class="schlossfuss">v0.8 · 05.09.2026</p>
+  <p class="schlossfuss">v0.9 · 05.10.2026</p>
 </div>
 
 <div id="app" hidden>
@@ -431,7 +435,12 @@ const GRUPPEN = [
   {id:"gt", name:"Getränke",            farbe:"#3F8F86"},
   {id:"hd", name:"Haushalt & Drogerie", farbe:"#7A8794"}
 ];
-const EINHEITEN = ["Stk","g","kg","ml","l","Pkg","Flasche","Dose","Glas","Bund"];
+const EINHEITEN = ["Stk","g","kg","ml","l","Pkg","Flasche","Dose","Glas","Bund",
+                   "Kasten","Becher","Tüte","Beutel","Schale","Rolle","Tafel","Tube"];
+/* Mehrzahl je Einheit; fehlt ein Eintrag, bleibt die Einheit gleich (Abkürzungen, „Bund“, „Becher“ …) */
+const MEHRZAHL = {Flasche:"Flaschen", Dose:"Dosen", Glas:"Gläser", Kasten:"Kästen", Tüte:"Tüten",
+                  Schale:"Schalen", Rolle:"Rollen", Tafel:"Tafeln", Tube:"Tuben"};
+const einheitWort = (einheit, menge) => (menge===1 ? einheit : (MEHRZAHL[einheit]||einheit));
 
 /* ============ Grundstock: [Name, Einheit, Grundgewicht 1–3] ============ */
 const KATALOG = {
@@ -453,8 +462,8 @@ fw:[["Hackfleisch","g",3],["Rinderhack","g",1],["Hähnchenbrust","g",2],["Hähnc
     ["Schnitzel","g",2],["Gulasch","g",1],["Steak","g",1],["Bratwurst","Stk",2],["Wiener Würstchen","Pkg",2],
     ["Salami","g",2],["Schinken","g",2],["Kochschinken","g",2],["Aufschnitt","g",2],["Leberwurst","g",1],
     ["Mettwurst","g",1],["Bacon","Pkg",1],["Speck","g",1],["Frikadellen","Stk",1],["Grillfleisch","g",1,[5,8]]],
-km:[["Milch","l",3],["H-Milch","l",2],["Butter","Stk",3],["Margarine","Stk",1],["Joghurt","Stk",3],
-    ["Naturjoghurt","Stk",2],["Quark","Stk",2],["Schmand","Stk",1],["Saure Sahne","Stk",1],["Sahne","Stk",2],
+km:[["Milch","l",3],["H-Milch","l",2],["Butter","Stk",3],["Margarine","Stk",1],["Joghurt","Becher",3],
+    ["Naturjoghurt","Becher",2],["Quark","Stk",2],["Schmand","Stk",1],["Saure Sahne","Stk",1],["Sahne","Stk",2],
     ["Crème fraîche","Stk",1],["Frischkäse","Stk",2],["Gouda","g",2],["Emmentaler","g",1],["Mozzarella","Stk",2],
     ["Parmesan","g",1],["Feta","Stk",1],["Camembert","Stk",1],["Reibekäse","Pkg",2],["Schmelzkäse","Pkg",1],
     ["Hüttenkäse","Stk",1],["Eier","Stk",3],["Buttermilch","l",1],["Kefir","l",1],["Pudding","Stk",1],
@@ -466,7 +475,7 @@ tk:[["Pizza","Stk",2],["Pommes","Pkg",2],["Fischstäbchen","Pkg",1],["Gemüse (T
 vr:[["Nudeln","Pkg",3],["Spaghetti","Pkg",2],["Reis","Pkg",2],["Kartoffelpüree","Pkg",1],["Mehl","Pkg",2],
     ["Zucker","Pkg",2],["Puderzucker","Pkg",1],["Salz","Pkg",1],["Pfeffer","Stk",1],["Speiseöl","Flasche",2],
     ["Olivenöl","Flasche",1],["Essig","Flasche",1],["Senf","Glas",1],["Ketchup","Flasche",2],
-    ["Mayonnaise","Glas",1],["Tomatenmark","Stk",2],["Passierte Tomaten","Pkg",2],["Dosentomaten","Dose",2],
+    ["Mayonnaise","Glas",1],["Tomatenmark","Tube",2],["Passierte Tomaten","Pkg",2],["Dosentomaten","Dose",2],
     ["Mais (Dose)","Dose",1],["Kidneybohnen","Dose",1],["Kichererbsen","Dose",1],["Linsen","Pkg",1],
     ["Thunfisch","Dose",1],["Brühe","Glas",1],["Soßenbinder","Pkg",1],["Backpulver","Pkg",1],
     ["Vanillezucker","Pkg",1],["Haferflocken","Pkg",2],["Müsli","Pkg",2],["Cornflakes","Pkg",1],
@@ -474,20 +483,20 @@ vr:[["Nudeln","Pkg",3],["Spaghetti","Pkg",2],["Reis","Pkg",2],["Kartoffelpüree"
     ["Kaffee","Pkg",3],["Filterkaffee","Pkg",1],["Espresso","Pkg",1],["Teebeutel","Pkg",1],["Kakao","Pkg",1],
     ["Paprikapulver","Stk",1],["Curry","Stk",1],["Oregano","Stk",1],["Zimt","Stk",1],["Hefe","Stk",1],
     ["Gnocchi","Pkg",1],["Couscous","Pkg",1],["Kokosmilch","Dose",1]],
-ss:[["Schokolade","Stk",2],["Kekse","Pkg",2],["Gummibärchen","Pkg",1],["Chips","Pkg",2],["Salzstangen","Pkg",1],
+ss:[["Schokolade","Tafel",2],["Kekse","Pkg",2],["Gummibärchen","Tüte",1],["Chips","Tüte",2],["Salzstangen","Pkg",1],
     ["Erdnüsse","Pkg",1],["Studentenfutter","Pkg",1],["Müsliriegel","Pkg",1],["Popcorn","Pkg",1],
     ["Waffeln","Pkg",1],["Bonbons","Pkg",1],["Nüsse","Pkg",1],["Lebkuchen","Pkg",1,[11,12]],["Spekulatius","Pkg",1,[11,12]],
     ["Christstollen","Stk",1,[11,12]]],
-gt:[["Wasser","Pkg",3],["Sprudelwasser","Pkg",2],["Stilles Wasser","Pkg",2],["Apfelsaft","Flasche",2],
+gt:[["Wasser","Kasten",3],["Sprudelwasser","Kasten",2],["Stilles Wasser","Kasten",2],["Apfelsaft","Flasche",2],
     ["Orangensaft","Flasche",2],["Traubensaft","Flasche",1],["Multivitaminsaft","Flasche",1],
-    ["Cola","Pkg",2],["Limonade","Pkg",1],["Spezi","Pkg",1],["Eistee","Flasche",1],["Bier","Pkg",2],
-    ["Alkoholfreies Bier","Pkg",1],["Radler","Pkg",1],["Rotwein","Flasche",1],["Weißwein","Flasche",1],
+    ["Cola","Pkg",2],["Limonade","Pkg",1],["Spezi","Pkg",1],["Eistee","Flasche",1],["Bier","Kasten",2],
+    ["Alkoholfreies Bier","Kasten",1],["Radler","Pkg",1],["Rotwein","Flasche",1],["Weißwein","Flasche",1],
     ["Sekt","Flasche",1],["Tonic Water","Flasche",1],["Glühwein","Flasche",1,[11,12]]],
 hd:[["Spülmittel","Flasche",2],["Spülmaschinentabs","Pkg",2],["Klarspüler","Flasche",1],["Waschmittel","Pkg",2],
     ["Weichspüler","Flasche",1],["Allzweckreiniger","Flasche",1],["WC-Reiniger","Flasche",1],
     ["Glasreiniger","Flasche",1],["Müllbeutel","Pkg",2],["Küchenrolle","Pkg",3],["Toilettenpapier","Pkg",3],
-    ["Taschentücher","Pkg",2],["Servietten","Pkg",1],["Alufolie","Stk",1],["Frischhaltefolie","Stk",1],
-    ["Backpapier","Stk",1],["Spülschwämme","Pkg",1],["Zahnpasta","Stk",2],["Zahnbürste","Stk",1],
+    ["Taschentücher","Pkg",2],["Servietten","Pkg",1],["Alufolie","Rolle",1],["Frischhaltefolie","Rolle",1],
+    ["Backpapier","Rolle",1],["Spülschwämme","Pkg",1],["Zahnpasta","Tube",2],["Zahnbürste","Stk",1],
     ["Duschgel","Flasche",2],["Shampoo","Flasche",2],["Seife","Stk",1],["Deo","Stk",2],["Rasierklingen","Pkg",1],
     ["Handcreme","Stk",1],["Sonnencreme","Stk",1,[5,8]],["Batterien","Pkg",1],["Katzenfutter","Pkg",1],
     ["Hundefutter","Pkg",1],["Grillkohle","Pkg",1,[5,8]]]
@@ -577,7 +586,7 @@ const abgehakte = () => zettelListe().filter(id=>ZETTEL[id].ab);
 function mengeText(menge, einheit){
   const m = Math.round(menge*100)/100;
   const t = (Math.abs(m-Math.round(m))<0.001) ? String(Math.round(m)) : String(m).replace(".",",");
-  return einheit==="Stk" ? t+"×" : t+" "+einheit;
+  return einheit==="Stk" ? t+"×" : t+" "+einheitWort(einheit, m);
 }
 let hinweisUhr = null;
 function melden(text){
@@ -1143,7 +1152,7 @@ function einstellungenZeichnen(){
   gruppenZeichnen();
   artikelListeZeichnen();
   const stand = nurLesen ? "ohne Verbindung" : "verbunden";
-  $("einFuss").textContent = "v0.8 · 05.09.2026 · "+stand;
+  $("einFuss").textContent = "v0.9 · 05.10.2026 · "+stand;
 }
 
 function gruppenZeichnen(){
