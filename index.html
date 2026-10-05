@@ -3,6 +3,9 @@
   Einkaufszettel
 
   Änderungsliste
+  v0.12 · 05.10.2026 · Mehr zusammengehörige Artikel stehen gemeinsam: Kaffee,
+                      Espresso, Tee; Kräuter; Zitrusfrüchte; Nudeln; Gewürze;
+                      Backzutaten; Aufstriche; Limonaden; Körperpflege usw.
   v0.11 · 05.10.2026 · Käsesorten wie Gouda, Emmentaler, Parmesan, Mozzarella,
                       Feta, Camembert stehen auf dem Zettel bei den anderen Käsen.
   v0.10 · 05.10.2026 · Auf dem Zettel stehen Artikel einer Sorte direkt
@@ -267,7 +270,7 @@ button{background:none;border:0;padding:0;cursor:pointer}
          placeholder="Passwort" aria-label="Passwort">
   <p class="fehler" id="schlossFehler"></p>
   <button class="hauptknopf" id="anmelden">Anmelden</button>
-  <p class="schlossfuss">v0.11 · 05.10.2026</p>
+  <p class="schlossfuss">v0.12 · 05.10.2026</p>
 </div>
 
 <div id="app" hidden>
@@ -595,16 +598,65 @@ function mengeText(menge, einheit){
 }
 /* Artikel einer Sorte (Reis, Basmati-Reis, Milchreis) sollen nebeneinander stehen.
    Die Sorte ist das Grundwort am Ende des Namens: ein anderer Artikelname (ab 4 Buchstaben)
-   oder ein Wort aus GRUNDWOERTER. Gibt es keins, ist der Artikel seine eigene Sorte. */
+   oder ein Wort aus GRUNDWOERTER. Gibt es keins, ist der Artikel seine eigene Sorte.
+   SORTEN fasst darüber hinaus zusammen, was zusammengehört, man dem Namen aber nicht ansieht;
+   ein ganzer Name dort geht vor dem Grundwort (Schnittlauch zu den Kräutern, nicht zum Lauch). */
 const GRUNDWOERTER = ["saft","wein","bier","käse","wurst","milch","joghurt","tee","öl","zucker","mehl",
                       "nudeln","salat","kohl","beeren","fleisch","pulver","creme","folie","papier",
-                      "reiniger","spüler","kaffee","futter"];
-/* Sorten, die man dem Namen nicht ansieht */
-const SORTE_VON = {gouda:"käse", emmentaler:"käse", edamer:"käse", tilsiter:"käse", parmesan:"käse",
-                   mozzarella:"käse", feta:"käse", camembert:"käse", brie:"käse", cheddar:"käse",
-                   halloumi:"käse", gorgonzola:"käse", mascarpone:"käse", ricotta:"käse", grana:"käse",
-                   grünländer:"käse", leerdammer:"käse", maasdamer:"käse", appenzeller:"käse"};
-const sortenWort = name => name.toLowerCase().replace(/\(.*?\)/g,"").replace(/[^a-zäöüß]/g,"");
+                      "reiniger","spüler","kaffee","futter","spinat","pilze","bohnen","soße","fisch"];
+const SORTEN = {
+  käse:          ["gouda","emmentaler","edamer","tilsiter","parmesan","mozzarella","feta","camembert","brie",
+                  "cheddar","halloumi","gorgonzola","mascarpone","ricotta","grana","grünländer","leerdammer",
+                  "maasdamer","appenzeller"],
+  kaffee:        ["espresso","kakao","tee","teebeutel","cappuccino"],
+  kräuter:       ["basilikum","petersilie","schnittlauch","dill","koriander","minze","rosmarin","thymian","kresse"],
+  zitrusfrüchte: ["orangen","mandarinen","clementinen","zitronen","limetten","grapefruit"],
+  steinobst:     ["pfirsiche","nektarinen","aprikosen","pflaumen","zwetschgen","kirschen"],
+  salat:         ["rucola"],
+  kohl:          ["brokkoli","kohlrabi"],
+  zwiebeln:      ["knoblauch","lauch","porree","schalotten"],
+  pilze:         ["champignons","pfifferlinge"],
+  brötchen:      ["croissants","laugenstangen","brezeln","semmeln"],
+  brot:          ["baguette","zwieback"],
+  hack:          ["hackfleisch","rinderhack","frikadellen","hackbällchen"],
+  geflügel:      ["hähnchenbrust","hähnchenschenkel","hähnchen","putenbrust","pute"],
+  fleisch:       ["steak","schnitzel","gulasch"],
+  wurst:         ["salami","aufschnitt","würstchen"],
+  schinken:      ["bacon","speck"],
+  joghurt:       ["skyr","quark","pudding"],
+  sahne:         ["schmand","crèmefraîche"],
+  butter:        ["margarine"],
+  milch:         ["kefir"],
+  nudeln:        ["spaghetti","gnocchi","penne","fusilli","tortellini","lasagne"],
+  gewürze:       ["salz","pfeffer","paprikapulver","curry","oregano","zimt","muskat"],
+  backzutaten:   ["mehl","zucker","hefe","backpulver","speisestärke"],
+  hülsenfrüchte: ["linsen","kichererbsen","bohnen"],
+  konserven:     ["thunfisch","kokosmilch"],
+  müsli:         ["haferflocken","cornflakes"],
+  aufstrich:     ["honig","marmelade","konfitüre","nussnougatcreme","erdnussbutter"],
+  soßen:         ["ketchup","mayonnaise","senf","remoulade","soße"],
+  öl:            ["essig"],
+  brühe:         ["soßenbinder"],
+  limonade:      ["cola","spezi","eistee","tonicwater","fanta","sprite"],
+  bier:          ["radler"],
+  wein:          ["sekt","prosecco"],
+  gemüse:        ["erbsen"],
+  fisch:         ["fischstäbchen","lachs","garnelen"],
+  pommes:        ["kroketten","rösti"],
+  kekse:         ["waffeln","lebkuchen","spekulatius"],
+  chips:         ["salzstangen","popcorn","flips"],
+  nüsse:         ["studentenfutter","mandeln"],
+  bonbons:       ["gummibärchen"],
+  körperpflege:  ["duschgel","shampoo","seife","deo","rasierklingen","creme"],
+  zahnpflege:    ["zahnpasta","zahnbürste","zahnseide","mundspülung"],
+  spülen:        ["spülmittel","spülmaschinentabs","spüler","spülschwämme"],
+  wäsche:        ["waschmittel","weichspüler"],
+  papier:        ["küchenrolle","taschentücher","servietten"],
+  folie:         ["müllbeutel","backpapier","gefrierbeutel"]
+};
+const SORTE_VON = {};
+Object.keys(SORTEN).forEach(s=>SORTEN[s].forEach(w=>{ SORTE_VON[w] = s; }));
+const sortenWort = name => name.toLowerCase().replace(/\(.*?\)/g,"").replace(/[^\p{L}]/gu,"");
 function nachSorteOrdnen(ids){
   const basen = new Set(GRUNDWOERTER);
   Object.values(ARTIKEL).forEach(a=>{ const w = sortenWort(a.n); if(w.length>=4) basen.add(w); });
@@ -614,7 +666,7 @@ function nachSorteOrdnen(ids){
     const w = sortenWort(ARTIKEL[id].n);
     let best = "";
     basen.forEach(b=>{ if(b.length<w.length && b.length>best.length && w.endsWith(b)) best = b; });
-    sorte[id] = SORTE_VON[best||w] || best || w;
+    sorte[id] = SORTE_VON[w] || SORTE_VON[best] || best || w;
   });
   return ids.sort((a,b)=>
     sorte[a].localeCompare(sorte[b],"de") ||
@@ -1184,7 +1236,7 @@ function einstellungenZeichnen(){
   gruppenZeichnen();
   artikelListeZeichnen();
   const stand = nurLesen ? "ohne Verbindung" : "verbunden";
-  $("einFuss").textContent = "v0.11 · 05.10.2026 · "+stand;
+  $("einFuss").textContent = "v0.12 · 05.10.2026 · "+stand;
 }
 
 function gruppenZeichnen(){
