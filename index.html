@@ -3,6 +3,7 @@
   Einkaufszettel
 
   Änderungsliste
+  v0.16 · 05.10.2026 · Zoomen unterbunden (Zwei-Finger-Zoom und Doppeltipp).
   v0.15 · 05.10.2026 · Statt Hinweisen nach jeder Aktion ein fester Rückgängig-Pfeil
                       im Kopf; er nimmt die letzten Aktionen der Reihe nach zurück.
                       Hinweise erscheinen nur noch bei Fehlern und Rückfragen.
@@ -63,7 +64,7 @@
 <html lang="de">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="robots" content="noindex, nofollow">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Einkaufszettel">
@@ -118,6 +119,7 @@
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{margin:0;padding:0}
+html{touch-action:pan-x pan-y;-webkit-text-size-adjust:100%}   /* kein Zoomen: nur Scrollen, kein Doppeltipp-Zoom */
 body{
   background:var(--papier);color:var(--tinte);
   font:400 17px/1.35 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
@@ -323,7 +325,7 @@ button{background:none;border:0;padding:0;cursor:pointer}
          placeholder="Passwort" aria-label="Passwort">
   <p class="fehler" id="schlossFehler"></p>
   <button class="hauptknopf" id="anmelden">Anmelden</button>
-  <p class="schlossfuss">v0.15 · 05.10.2026</p>
+  <p class="schlossfuss">v0.16 · 05.10.2026</p>
 </div>
 
 <div id="app" hidden>
@@ -661,6 +663,9 @@ function merkerGesetzt(){
 
 /* ============ Hilfen ============ */
 const $ = id => document.getElementById(id);
+/* Zoomen unterbinden: iOS beachtet „user-scalable=no“ nicht immer, daher die Gesten selbst abfangen */
+["gesturestart","gesturechange","gestureend"].forEach(t=>document.addEventListener(t, e=>e.preventDefault(), {passive:false}));
+document.addEventListener("touchmove", e=>{ if(e.touches.length>1) e.preventDefault(); }, {passive:false});
 /* Die Suchzeile klebt direkt unter dem Kopf; dessen Höhe hängt von Schrift, Notch und Hinweisstreifen ab */
 new ResizeObserver(([e])=>document.documentElement.style
   .setProperty("--kopfhoehe", e.target.getBoundingClientRect().height+"px"))
@@ -1471,7 +1476,7 @@ function einstellungenZeichnen(){
   gruppenZeichnen();
   artikelListeZeichnen();
   const stand = nurLesen ? "ohne Verbindung" : "verbunden";
-  $("einFuss").textContent = "v0.15 · 05.10.2026 · "+stand;
+  $("einFuss").textContent = "v0.16 · 05.10.2026 · "+stand;
 }
 
 function gruppenZeichnen(){
