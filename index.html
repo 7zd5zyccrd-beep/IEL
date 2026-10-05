@@ -3,6 +3,10 @@
   Einkaufszettel
 
   Änderungsliste
+  v0.17 · 05.10.2026 · Fortschritt oben auf dem Zettel („7 von 12 erledigt“),
+                      ganz erledigte Gruppen klappen zu. Mehrere Läden mit
+                      eigener Gruppenreihenfolge, Auswahl auf dem Zettel.
+                      Neue Artikel bekommen die Gruppe vorgeschlagen.
   v0.16 · 05.10.2026 · Zoomen unterbunden (Zwei-Finger-Zoom und Doppeltipp).
   v0.15 · 05.10.2026 · Statt Hinweisen nach jeder Aktion ein fester Rückgängig-Pfeil
                       im Kopf; er nimmt die letzten Aktionen der Reihe nach zurück.
@@ -242,6 +246,18 @@ button{background:none;border:0;padding:0;cursor:pointer}
 .textblock{display:flex;flex-direction:column;min-width:0}
 .notiz{font-size:13px;color:var(--matt);margin-top:1px}
 .zeile[data-ab="1"] .notiz{color:var(--erledigt)}
+.zettelkopf{display:flex;align-items:center;gap:12px;margin:16px 0 0}
+.fortschritt{flex:1;min-width:0;font-size:14px;color:var(--matt);font-weight:550}
+.balken{height:5px;margin-top:6px;background:var(--linie);border-radius:3px;overflow:hidden}
+.balken i{display:block;height:100%;background:var(--akzent);border-radius:3px;transition:width .2s}
+.ladenwahl{flex:none;max-width:48%;min-height:36px;padding:0 10px;font:inherit;font-size:16px;font-weight:600;
+  color:var(--akzent);background:var(--karte);border:1px solid var(--linie);border-radius:10px}
+.gruppe h2.klappe{cursor:pointer}
+.gruppe h2 .erledigt{margin-left:auto;font-weight:600;color:var(--akzent)}
+.gruppe[data-zu="1"] h2{margin-bottom:0}
+.ladenknoepfe{display:flex;gap:10px;margin-top:6px}
+.ladenknoepfe .mehr{flex:1;width:auto}
+.ladenknoepfe .mehr.loeschen-laden{color:var(--warnung)}
 .mengenhinweis{width:100%;font-size:14px;color:var(--akzent);font-weight:600;padding:2px 2px 4px}
 .einheitmehr{color:var(--akzent);font-weight:600}
 .mengenknopf{
@@ -325,7 +341,7 @@ button{background:none;border:0;padding:0;cursor:pointer}
          placeholder="Passwort" aria-label="Passwort">
   <p class="fehler" id="schlossFehler"></p>
   <button class="hauptknopf" id="anmelden">Anmelden</button>
-  <p class="schlossfuss">v0.16 · 05.10.2026</p>
+  <p class="schlossfuss">v0.17 · 05.10.2026</p>
 </div>
 
 <div id="app" hidden>
@@ -378,9 +394,14 @@ button{background:none;border:0;padding:0;cursor:pointer}
     <section id="ansichtZet" hidden></section>
 
     <section id="ansichtEin" hidden>
-      <h2 class="abschnitt">Reihenfolge im Laden</h2>
-      <p class="erklaerung">So stehen die Gruppen auf dem Zettel. Ordne sie nach deinem Weg durch den Laden.</p>
+      <h2 class="abschnitt">Läden und Reihenfolge</h2>
+      <p class="erklaerung">Jeder Laden hat seine eigene Reihenfolge der Gruppen. Wähle den Laden und ordne die Gruppen nach deinem Weg durch ihn; auf dem Zettel stellst du ein, wo du gerade bist.</p>
+      <div class="wahl" id="ladenWahl"></div>
       <div class="posten" id="gruppenListe"></div>
+      <div class="ladenknoepfe">
+        <button class="mehr" id="ladenUmbenennen">Umbenennen</button>
+        <button class="mehr loeschen-laden" id="ladenLoeschen">Laden löschen</button>
+      </div>
 
       <h2 class="abschnitt">Artikel</h2>
       <div class="suchhuelle">
@@ -465,6 +486,17 @@ button{background:none;border:0;padding:0;cursor:pointer}
   <div class="sheetknoepfe">
     <button class="weg" id="artAus">Aus den Vorschlägen</button>
     <button class="ok" id="artOk">Übernehmen</button>
+  </div>
+</div>
+
+<div class="sheet" id="sheetLaden" role="dialog" aria-modal="true" aria-labelledby="ladenTitel">
+  <h3 id="ladenTitel">Neuer Laden</h3>
+  <p class="unterzeile" id="ladenUnter"></p>
+  <label for="ladenName">Name</label>
+  <input class="namensfeld" id="ladenName" autocomplete="off" maxlength="30" placeholder="z. B. Aldi, Rewe, Markt">
+  <div class="sheetknoepfe">
+    <button class="weg" id="ladenAbbruch">Abbrechen</button>
+    <button class="ok" id="ladenOk">Übernehmen</button>
   </div>
 </div>
 
@@ -590,6 +622,7 @@ hd:[["Spülmittel","Flasche",2],["Spülmaschinentabs","Pkg",2],["Klarspüler","F
 /* ============ Zustand ============ */
 const SP_SPIEGEL = "einkauf.spiegel";
 const SP_ANGEMELDET = "einkauf.angemeldet";
+const SP_LADEN = "einkauf.laden";       // wo dieses Gerät gerade einkauft
 const SP_NAME = "einkauf.haushalt";     // zuletzt benutzter Haushaltsname, nur zur Bequemlichkeit
 let BASIS = "";                          // "haushalte/<uid>/" – jeder Haushalt hat seinen eigenen Ast
 
@@ -632,17 +665,32 @@ function artikelMischen(){
 }
 
 /* Reihenfolge der Gruppen: der Weg durch den Laden, in den Einstellungen verschiebbar */
-let GRUPPENFOLGE = null;
+let GRUPPENFOLGE = null;     // Reihenfolge des ersten Ladens (einstellungen/gruppen)
+/* Weitere Läden mit eigener Reihenfolge: einstellungen/laeden/<id> = {n, gruppen}.
+   Der erste Laden heißt einstellungen/standardname. Welcher gerade gilt, merkt sich jedes Gerät. */
+let LAEDEN = {};
+let STANDARDNAME = null;
+let LADEN = "";
+try{ LADEN = localStorage.getItem(SP_LADEN)||""; }catch(f){}
+const aktiverLaden = () => (LADEN && LAEDEN[LADEN]) ? LADEN : "";
+const ladenName = id => id ? ((LAEDEN[id]&&LAEDEN[id].n) || "Laden") : (STANDARDNAME || "Mein Laden");
+function ladenWaehlen(id){
+  LADEN = id;
+  try{ id ? localStorage.setItem(SP_LADEN, id) : localStorage.removeItem(SP_LADEN); }catch(f){}
+  zeichnen();
+}
 function gruppenGeordnet(){
-  if(!GRUPPENFOLGE) return GRUPPEN;
-  const bekannt = GRUPPENFOLGE.map(id=>GRUPPEN.find(g=>g.id===id)).filter(Boolean);
+  const l = aktiverLaden();
+  const folge = l ? LAEDEN[l].gruppen : GRUPPENFOLGE;
+  if(!Array.isArray(folge)) return GRUPPEN;
+  const bekannt = folge.map(id=>GRUPPEN.find(g=>g.id===id)).filter(Boolean);
   const rest = GRUPPEN.filter(g=>bekannt.indexOf(g)<0);
   return bekannt.concat(rest);
 }
 
 /* ---- Kopie im Gerät, für schlechten Empfang ---- */
 function spiegelSchreiben(){
-  try{ localStorage.setItem(SP_SPIEGEL, JSON.stringify({h:BASIS, u:UEBER, z:ZETTEL, gf:GRUPPENFOLGE})); }catch(f){}
+  try{ localStorage.setItem(SP_SPIEGEL, JSON.stringify({h:BASIS, u:UEBER, z:ZETTEL, gf:GRUPPENFOLGE, l:LAEDEN, sn:STANDARDNAME})); }catch(f){}
 }
 function spiegelLesen(){
   try{
@@ -651,6 +699,7 @@ function spiegelLesen(){
     const d = JSON.parse(roh);
     if(BASIS && d.h && d.h !== BASIS) return false;   // Kopie gehört einem anderen Haushalt
     UEBER = d.u||{}; ZETTEL = d.z||{}; GRUPPENFOLGE = Array.isArray(d.gf) ? d.gf : null;
+    LAEDEN = d.l||{}; STANDARDNAME = d.sn||null;
     return true;
   }catch(f){ return false; }
 }
@@ -741,21 +790,34 @@ const SORTEN = {
 const SORTE_VON = {};
 Object.keys(SORTEN).forEach(s=>SORTEN[s].forEach(w=>{ SORTE_VON[w] = s; }));
 const sortenWort = name => name.toLowerCase().replace(/\(.*?\)/g,"").replace(/[^\p{L}]/gu,"");
-function nachSorteOrdnen(ids){
+function sortenBasen(){
   const basen = new Set(GRUNDWOERTER);
   Object.values(ARTIKEL).forEach(a=>{ const w = sortenWort(a.n); if(w.length>=4) basen.add(w); });
   Object.keys(SORTE_VON).forEach(b=>basen.add(b));
+  return basen;
+}
+function sorteVon(name, basen){
+  const w = sortenWort(name);
+  let best = "";
+  basen.forEach(b=>{ if(b.length<w.length && b.length>best.length && w.endsWith(b)) best = b; });
+  return SORTE_VON[w] || SORTE_VON[best] || best || w;
+}
+function nachSorteOrdnen(ids){
+  const basen = sortenBasen();
   const sorte = {};
-  ids.forEach(id=>{
-    const w = sortenWort(ARTIKEL[id].n);
-    let best = "";
-    basen.forEach(b=>{ if(b.length<w.length && b.length>best.length && w.endsWith(b)) best = b; });
-    sorte[id] = SORTE_VON[w] || SORTE_VON[best] || best || w;
-  });
+  ids.forEach(id=>{ sorte[id] = sorteVon(ARTIKEL[id].n, basen); });
   return ids.sort((a,b)=>
     sorte[a].localeCompare(sorte[b],"de") ||
     (sortenWort(ARTIKEL[b].n)===sorte[b]) - (sortenWort(ARTIKEL[a].n)===sorte[a]) ||   // Grundartikel vorn
     ARTIKEL[a].n.localeCompare(ARTIKEL[b].n,"de"));
+}
+/* Für neue Artikel: die Gruppe, in der die meisten Artikel derselben Sorte stehen („Basmati-Reis“ → Vorrat) */
+function gruppeVorschlagen(name){
+  if(!sortenWort(name)) return null;
+  const basen = sortenBasen(), sorte = sorteVon(name, basen), zahl = {};
+  Object.values(ARTIKEL).forEach(a=>{ if(sorteVon(a.n, basen)===sorte) zahl[a.g] = (zahl[a.g]||0)+1; });
+  const beste = Object.keys(zahl).sort((x,y)=>zahl[y]-zahl[x])[0];
+  return beste || null;
 }
 let hinweisUhr = null;
 /* Hinweise nur noch für Fehler und Rückfragen – gewöhnliche Aktionen laufen still */
@@ -1123,6 +1185,7 @@ function kachelnZeichnen(){
   }
 }
 
+const aufgeklappt = new Set();   // erledigte Gruppen, die trotzdem offen stehen sollen
 function zettelZeichnen(){
   const ziel = $("ansichtZet");
   ziel.innerHTML = "";
@@ -1134,18 +1197,55 @@ function zettelZeichnen(){
     ziel.appendChild(l);
     return;
   }
+
+  const kopf = document.createElement("div");
+  kopf.className = "zettelkopf";
+  const fertig = ids.filter(id=>ZETTEL[id].ab).length;
+  const stand = document.createElement("div");
+  stand.className = "fortschritt";
+  stand.textContent = fertig===ids.length ? "Alles erledigt" : fertig+" von "+ids.length+" erledigt";
+  const balken = document.createElement("div"); balken.className = "balken";
+  const fuell = document.createElement("i"); fuell.style.width = Math.round(100*fertig/ids.length)+"%";
+  balken.appendChild(fuell); stand.appendChild(balken);
+  kopf.appendChild(stand);
+  if(Object.keys(LAEDEN).length){
+    const wahl = document.createElement("select");
+    wahl.className = "ladenwahl"; wahl.setAttribute("aria-label","Laden");
+    ["", ...Object.keys(LAEDEN)].forEach(id=>{
+      const o = document.createElement("option");
+      o.value = id; o.textContent = ladenName(id); o.selected = id===aktiverLaden();
+      wahl.appendChild(o);
+    });
+    wahl.onchange = ()=>ladenWaehlen(wahl.value);
+    kopf.appendChild(wahl);
+  }
+  ziel.appendChild(kopf);
+
   gruppenGeordnet().forEach(g=>{
     const sortiert = nachSorteOrdnen(ids.filter(id=>ARTIKEL[id].g===g.id));
     const posten = sortiert.filter(id=>!ZETTEL[id].ab).concat(sortiert.filter(id=>ZETTEL[id].ab));
     if(!posten.length) return;
+    const erledigt = posten.every(id=>ZETTEL[id].ab);
+    const zu = erledigt && !aufgeklappt.has(g.id);
 
     const kasten = document.createElement("section");
     kasten.className = "gruppe";
+    if(zu) kasten.dataset.zu = "1";
     const h = document.createElement("h2");
     const punkt = document.createElement("span");
     punkt.className = "punkt"; punkt.style.background = g.farbe;
     h.appendChild(punkt); h.appendChild(document.createTextNode(g.name));
+    if(erledigt){
+      // ganz erledigte Gruppen klappen zu; antippen klappt sie auf und wieder zu
+      const e = document.createElement("span");
+      e.className = "erledigt"; e.textContent = "✓ "+posten.length+(zu ? " ▸" : " ▾");
+      h.appendChild(e);
+      h.className = "klappe";
+      h.setAttribute("role","button"); h.setAttribute("aria-expanded", !zu);
+      h.onclick = ()=>{ zu ? aufgeklappt.add(g.id) : aufgeklappt.delete(g.id); zettelZeichnen(); };
+    }else aufgeklappt.delete(g.id);
     kasten.appendChild(h);
+    if(zu){ ziel.appendChild(kasten); return; }
 
     const liste = document.createElement("div");
     liste.className = "posten";
@@ -1321,7 +1421,8 @@ $("mengeWeg").onclick = ()=>{
 let neuVorgabe = null;   // Menge/Einheit aus dem Suchfeld („2 Kästen Limo“)
 function neuOeffnen(name, eingabe){
   neuVorgabe = (eingabe && eingabe.menge!==null) ? eingabe : null;
-  neuGruppe = null; neuEinheit = (neuVorgabe && neuVorgabe.einheit) || "Stk";
+  neuGruppe = null; neuGruppeGewaehlt = false;
+  neuEinheit = (neuVorgabe && neuVorgabe.einheit) || "Stk";
   $("neuName").value = name;
   const kasten = $("neuGruppen");
   kasten.innerHTML = "";
@@ -1330,17 +1431,27 @@ function neuOeffnen(name, eingabe){
     const punkt = document.createElement("span");
     punkt.style.cssText = "display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;background:"+g.farbe;
     b.appendChild(punkt); b.appendChild(document.createTextNode(g.name));
+    b.dataset.gruppe = g.id;
     b.setAttribute("aria-pressed","false");
-    b.onclick = ()=>{
-      neuGruppe = g.id;
-      [...kasten.children].forEach(c=>c.setAttribute("aria-pressed", c===b));
-      einheitenZeichnen($("neuEinheiten"), neuEinheit, e=>{ neuEinheit = e; }, neuGruppe);
-    };
+    b.onclick = ()=>{ neuGruppeGewaehlt = true; neuGruppeSetzen(g.id); };
     kasten.appendChild(b);
   });
   einheitenZeichnen($("neuEinheiten"), neuEinheit, e=>{ neuEinheit = e; }, null, true);
+  neuVorschlag();
   blattOeffnen($("sheetNeu"));
 }
+let neuGruppeGewaehlt = false;   // von Hand gewählt: dann schlägt die App nichts mehr vor
+function neuGruppeSetzen(id){
+  neuGruppe = id;
+  [...$("neuGruppen").children].forEach(c=>c.setAttribute("aria-pressed", c.dataset.gruppe===id));
+  einheitenZeichnen($("neuEinheiten"), neuEinheit, e=>{ neuEinheit = e; }, id, !id);
+}
+function neuVorschlag(){
+  if(neuGruppeGewaehlt) return;
+  const vorschlag = gruppeVorschlagen($("neuName").value);
+  if(vorschlag !== neuGruppe) neuGruppeSetzen(vorschlag);
+}
+$("neuName").addEventListener("input", neuVorschlag);
 $("neuAbbruch").onclick = blattSchliessen;
 $("neuOk").onclick = ()=>{
   const name = $("neuName").value.trim();
@@ -1473,10 +1584,11 @@ function einstellungenSchliessen(){
 }
 
 function einstellungenZeichnen(){
+  ladenZeichnen();
   gruppenZeichnen();
   artikelListeZeichnen();
   const stand = nurLesen ? "ohne Verbindung" : "verbunden";
-  $("einFuss").textContent = "v0.16 · 05.10.2026 · "+stand;
+  $("einFuss").textContent = "v0.17 · 05.10.2026 · "+stand;
 }
 
 function gruppenZeichnen(){
@@ -1516,13 +1628,79 @@ function gruppeSchieben(i,richtung){
   const folge = gruppenGeordnet().map(g=>g.id);
   const j = i+richtung;
   if(j<0 || j>=folge.length) return;
-  const alt = folge.slice();
+  const alt = folge.slice(), laden = aktiverLaden();
   const merk = folge[i]; folge[i] = folge[j]; folge[j] = merk;
-  merken("Gruppe verschieben", ()=>{ GRUPPENFOLGE = alt; setzen("einstellungen/gruppen", alt); zeichnen(); });
-  GRUPPENFOLGE = folge;
+  merken("Gruppe verschieben", ()=>{ folgeSetzen(laden, alt); zeichnen(); });
+  folgeSetzen(laden, folge);
   gruppenZeichnen();
-  setzen("einstellungen/gruppen", folge);
 }
+function folgeSetzen(laden, folge){
+  if(laden && LAEDEN[laden]){ LAEDEN[laden].gruppen = folge; setzen("einstellungen/laeden/"+laden+"/gruppen", folge); }
+  else { GRUPPENFOLGE = folge; setzen("einstellungen/gruppen", folge); }
+}
+
+/* --- Läden anlegen, umbenennen, löschen --- */
+let ladenBearbeiten = null;   // null: neuer Laden, "" oder id: umbenennen
+function ladenZeichnen(){
+  const kasten = $("ladenWahl");
+  kasten.innerHTML = "";
+  const aktiv = aktiverLaden();
+  ["", ...Object.keys(LAEDEN)].forEach(id=>{
+    const b = document.createElement("button");
+    b.textContent = ladenName(id);
+    b.setAttribute("aria-pressed", id===aktiv);
+    b.onclick = ()=>ladenWaehlen(id);
+    kasten.appendChild(b);
+  });
+  const neu = document.createElement("button");
+  neu.className = "einheitmehr"; neu.textContent = "+ Laden";
+  neu.onclick = ()=>ladenBlatt(null);
+  kasten.appendChild(neu);
+  $("ladenUmbenennen").textContent = "„"+ladenName(aktiv)+"“ umbenennen";
+  $("ladenLoeschen").hidden = !aktiv;
+}
+function ladenBlatt(id){
+  if(schreibsperre()) return;
+  ladenBearbeiten = id;
+  $("ladenTitel").textContent = id===null ? "Neuer Laden" : "Laden umbenennen";
+  $("ladenUnter").textContent = id===null ? "Er übernimmt die Reihenfolge von „"+ladenName(aktiverLaden())+"“; danach ordnest du sie für ihn." : "";
+  $("ladenName").value = id===null ? "" : ladenName(id);
+  blattOeffnen($("sheetLaden"));
+  setTimeout(()=>$("ladenName").focus(), 250);
+}
+$("ladenAbbruch").onclick = blattSchliessen;
+$("ladenName").addEventListener("keydown", e=>{ if(e.key==="Enter") $("ladenOk").click(); });
+$("ladenOk").onclick = ()=>{
+  const name = $("ladenName").value.trim();
+  if(!name){ melden("Der Name fehlt noch."); return; }
+  const id = ladenBearbeiten, vorher = aktiverLaden();
+  if(id===null){
+    const neu = "l"+Date.now().toString(36);
+    const folge = gruppenGeordnet().map(g=>g.id);
+    LAEDEN[neu] = {n:name, gruppen:folge};
+    setzen("einstellungen/laeden/"+neu, {n:name, gruppen:folge});
+    merken("Laden anlegen", ()=>{ entfernen("einstellungen/laeden/"+neu); ladenWaehlen(vorher); });
+    ladenWaehlen(neu);
+  }else if(id){
+    const alt = LAEDEN[id].n;
+    aendern("einstellungen/laeden/"+id, {n:name});
+    merken("Laden umbenennen", ()=>aendern("einstellungen/laeden/"+id, {n:alt}));
+  }else{
+    const alt = STANDARDNAME;
+    setzen("einstellungen/standardname", name);
+    merken("Laden umbenennen", ()=>setzen("einstellungen/standardname", alt));
+  }
+  blattSchliessen();
+};
+$("ladenUmbenennen").onclick = ()=>ladenBlatt(aktiverLaden());
+$("ladenLoeschen").onclick = ()=>{
+  const id = aktiverLaden();
+  if(!id || schreibsperre()) return;
+  const alt = LAEDEN[id];
+  entfernen("einstellungen/laeden/"+id);
+  merken(alt.n+" löschen", ()=>{ setzen("einstellungen/laeden/"+id, alt); ladenWaehlen(id); });
+  ladenWaehlen("");
+};
 
 function artikelListeZeichnen(){
   const kasten = $("artikelListe");
@@ -1722,6 +1900,14 @@ function lauschen(dbMod, db){
     GRUPPENFOLGE = Array.isArray(folge) ? folge : null;
     spiegelSchreiben(); zeichnen();
   });
+  dbMod.onValue(dbMod.ref(db,BASIS+"einstellungen/laeden"), s=>{
+    LAEDEN = s.val() || {};
+    spiegelSchreiben(); zeichnen();
+  });
+  dbMod.onValue(dbMod.ref(db,BASIS+"einstellungen/standardname"), s=>{
+    STANDARDNAME = s.val() || null;
+    spiegelSchreiben(); zeichnen();
+  });
 
   dbMod.onValue(dbMod.ref(db,".info/connected"), s=>{
     const da = s.val()===true;
@@ -1780,7 +1966,8 @@ async function start(){
   $("sperren").onclick = async ()=>{
     merker(false);
     try{ localStorage.removeItem(SP_SPIEGEL); }catch(f){}
-    UEBER = {}; ZETTEL = {}; GRUPPENFOLGE = null; BASIS = "";
+    UEBER = {}; ZETTEL = {}; GRUPPENFOLGE = null; LAEDEN = {}; STANDARDNAME = null; BASIS = "";
+    try{ localStorage.removeItem(SP_LADEN); }catch(f){}
     try{ await authMod.signOut(auth); }catch(f){}
     location.reload();
   };
