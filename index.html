@@ -3,6 +3,9 @@
   Einkaufszettel
 
   Änderungsliste
+  v0.10 · 05.10.2026 · Auf dem Zettel stehen Artikel einer Sorte direkt
+                      hintereinander (Reis, Basmati-Reis, Milchreis; Apfelsaft,
+                      Orangensaft …), erkannt am Grundwort am Ende des Namens.
   v0.9 · 05.10.2026 · Neue Einheiten: Kasten, Becher, Tüte, Beutel, Schale, Rolle,
                       Tafel, Tube. Einheiten stehen jetzt in Ein- oder Mehrzahl
                       passend zur Menge (1 Kasten, 2 Kästen). Grundstock teils
@@ -262,7 +265,7 @@ button{background:none;border:0;padding:0;cursor:pointer}
          placeholder="Passwort" aria-label="Passwort">
   <p class="fehler" id="schlossFehler"></p>
   <button class="hauptknopf" id="anmelden">Anmelden</button>
-  <p class="schlossfuss">v0.9 · 05.10.2026</p>
+  <p class="schlossfuss">v0.10 · 05.10.2026</p>
 </div>
 
 <div id="app" hidden>
@@ -588,6 +591,28 @@ function mengeText(menge, einheit){
   const t = (Math.abs(m-Math.round(m))<0.001) ? String(Math.round(m)) : String(m).replace(".",",");
   return einheit==="Stk" ? t+"×" : t+" "+einheitWort(einheit, m);
 }
+/* Artikel einer Sorte (Reis, Basmati-Reis, Milchreis) sollen nebeneinander stehen.
+   Die Sorte ist das Grundwort am Ende des Namens: ein anderer Artikelname (ab 4 Buchstaben)
+   oder ein Wort aus GRUNDWOERTER. Gibt es keins, ist der Artikel seine eigene Sorte. */
+const GRUNDWOERTER = ["saft","wein","bier","käse","wurst","milch","joghurt","tee","öl","zucker","mehl",
+                      "nudeln","salat","kohl","beeren","fleisch","pulver","creme","folie","papier",
+                      "reiniger","spüler","kaffee","futter"];
+const sortenWort = name => name.toLowerCase().replace(/\(.*?\)/g,"").replace(/[^a-zäöüß]/g,"");
+function nachSorteOrdnen(ids){
+  const basen = new Set(GRUNDWOERTER);
+  Object.values(ARTIKEL).forEach(a=>{ const w = sortenWort(a.n); if(w.length>=4) basen.add(w); });
+  const sorte = {};
+  ids.forEach(id=>{
+    const w = sortenWort(ARTIKEL[id].n);
+    let best = "";
+    basen.forEach(b=>{ if(b.length<w.length && b.length>best.length && w.endsWith(b)) best = b; });
+    sorte[id] = best || w;
+  });
+  return ids.sort((a,b)=>
+    sorte[a].localeCompare(sorte[b],"de") ||
+    (sortenWort(ARTIKEL[b].n)===sorte[b]) - (sortenWort(ARTIKEL[a].n)===sorte[a]) ||   // Grundartikel vorn
+    ARTIKEL[a].n.localeCompare(ARTIKEL[b].n,"de"));
+}
 let hinweisUhr = null;
 function melden(text){
   const h = $("hinweis");
@@ -899,8 +924,7 @@ function zettelZeichnen(){
     return;
   }
   gruppenGeordnet().forEach(g=>{
-    const posten = ids.filter(id=>ARTIKEL[id].g===g.id)
-                      .sort((a,b)=>ARTIKEL[a].n.localeCompare(ARTIKEL[b].n,"de"));
+    const posten = nachSorteOrdnen(ids.filter(id=>ARTIKEL[id].g===g.id));
     if(!posten.length) return;
 
     const kasten = document.createElement("section");
@@ -1070,7 +1094,7 @@ $("abschliessen").onclick = ()=>{
 function offeneZeichnen(offen){
   const kasten = $("frageOffenListe");
   kasten.innerHTML = "";
-  offen.sort((a,b)=>ARTIKEL[a].n.localeCompare(ARTIKEL[b].n,"de")).forEach(id=>{
+  nachSorteOrdnen(offen).forEach(id=>{
     const a = ARTIKEL[id], p = ZETTEL[id];
     const zeile = document.createElement("div");
     zeile.className = "zeile";
@@ -1152,7 +1176,7 @@ function einstellungenZeichnen(){
   gruppenZeichnen();
   artikelListeZeichnen();
   const stand = nurLesen ? "ohne Verbindung" : "verbunden";
-  $("einFuss").textContent = "v0.9 · 05.10.2026 · "+stand;
+  $("einFuss").textContent = "v0.10 · 05.10.2026 · "+stand;
 }
 
 function gruppenZeichnen(){
