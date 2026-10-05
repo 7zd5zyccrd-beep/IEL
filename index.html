@@ -3,6 +3,8 @@
   Einkaufszettel
 
   Änderungsliste
+  v0.11 · 05.10.2026 · Käsesorten wie Gouda, Emmentaler, Parmesan, Mozzarella,
+                      Feta, Camembert stehen auf dem Zettel bei den anderen Käsen.
   v0.10 · 05.10.2026 · Auf dem Zettel stehen Artikel einer Sorte direkt
                       hintereinander (Reis, Basmati-Reis, Milchreis; Apfelsaft,
                       Orangensaft …), erkannt am Grundwort am Ende des Namens.
@@ -265,7 +267,7 @@ button{background:none;border:0;padding:0;cursor:pointer}
          placeholder="Passwort" aria-label="Passwort">
   <p class="fehler" id="schlossFehler"></p>
   <button class="hauptknopf" id="anmelden">Anmelden</button>
-  <p class="schlossfuss">v0.10 · 05.10.2026</p>
+  <p class="schlossfuss">v0.11 · 05.10.2026</p>
 </div>
 
 <div id="app" hidden>
@@ -597,16 +599,22 @@ function mengeText(menge, einheit){
 const GRUNDWOERTER = ["saft","wein","bier","käse","wurst","milch","joghurt","tee","öl","zucker","mehl",
                       "nudeln","salat","kohl","beeren","fleisch","pulver","creme","folie","papier",
                       "reiniger","spüler","kaffee","futter"];
+/* Sorten, die man dem Namen nicht ansieht */
+const SORTE_VON = {gouda:"käse", emmentaler:"käse", edamer:"käse", tilsiter:"käse", parmesan:"käse",
+                   mozzarella:"käse", feta:"käse", camembert:"käse", brie:"käse", cheddar:"käse",
+                   halloumi:"käse", gorgonzola:"käse", mascarpone:"käse", ricotta:"käse", grana:"käse",
+                   grünländer:"käse", leerdammer:"käse", maasdamer:"käse", appenzeller:"käse"};
 const sortenWort = name => name.toLowerCase().replace(/\(.*?\)/g,"").replace(/[^a-zäöüß]/g,"");
 function nachSorteOrdnen(ids){
   const basen = new Set(GRUNDWOERTER);
   Object.values(ARTIKEL).forEach(a=>{ const w = sortenWort(a.n); if(w.length>=4) basen.add(w); });
+  Object.keys(SORTE_VON).forEach(b=>basen.add(b));
   const sorte = {};
   ids.forEach(id=>{
     const w = sortenWort(ARTIKEL[id].n);
     let best = "";
     basen.forEach(b=>{ if(b.length<w.length && b.length>best.length && w.endsWith(b)) best = b; });
-    sorte[id] = best || w;
+    sorte[id] = SORTE_VON[best||w] || best || w;
   });
   return ids.sort((a,b)=>
     sorte[a].localeCompare(sorte[b],"de") ||
@@ -1176,7 +1184,7 @@ function einstellungenZeichnen(){
   gruppenZeichnen();
   artikelListeZeichnen();
   const stand = nurLesen ? "ohne Verbindung" : "verbunden";
-  $("einFuss").textContent = "v0.10 · 05.10.2026 · "+stand;
+  $("einFuss").textContent = "v0.11 · 05.10.2026 · "+stand;
 }
 
 function gruppenZeichnen(){
