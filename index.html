@@ -3,6 +3,8 @@
   Einkaufszettel
 
   Änderungsliste
+  v0.13 · 05.10.2026 · Kein Spalt mehr zwischen Reitern und Suchleiste: die
+                      Suchzeile richtet sich nach der tatsächlichen Kopfhöhe.
   v0.12 · 05.10.2026 · Mehr zusammengehörige Artikel stehen gemeinsam: Kaffee,
                       Espresso, Tee; Kräuter; Zitrusfrüchte; Nudeln; Gewürze;
                       Backzutaten; Aufstriche; Limonaden; Körperpflege usw.
@@ -144,7 +146,7 @@ button{background:none;border:0;padding:0;cursor:pointer}
 .zeile[data-aus="1"] .name{color:var(--matt)}
 
 .blatt{padding:0 16px}
-.suchzeile{position:sticky;top:calc(var(--sicher-oben) + 108px);z-index:15;background:var(--papier);padding:12px 0 8px}
+.suchzeile{position:sticky;top:var(--kopfhoehe,calc(var(--sicher-oben) + 105px));z-index:15;background:var(--papier);padding:12px 0 8px}
 .suchfeld{
   width:100%;min-height:46px;padding:0 40px 0 14px;border:1px solid var(--linie);
   border-radius:var(--rand);background:var(--karte);
@@ -270,7 +272,7 @@ button{background:none;border:0;padding:0;cursor:pointer}
          placeholder="Passwort" aria-label="Passwort">
   <p class="fehler" id="schlossFehler"></p>
   <button class="hauptknopf" id="anmelden">Anmelden</button>
-  <p class="schlossfuss">v0.12 · 05.10.2026</p>
+  <p class="schlossfuss">v0.13 · 05.10.2026</p>
 </div>
 
 <div id="app" hidden>
@@ -586,6 +588,10 @@ function merkerGesetzt(){
 
 /* ============ Hilfen ============ */
 const $ = id => document.getElementById(id);
+/* Die Suchzeile klebt direkt unter dem Kopf; dessen Höhe hängt von Schrift, Notch und Hinweisstreifen ab */
+new ResizeObserver(([e])=>document.documentElement.style
+  .setProperty("--kopfhoehe", e.target.getBoundingClientRect().height+"px"))
+  .observe(document.querySelector(".kopf"));
 const gruppeVon = id => GRUPPEN.find(g=>g.id===id) || GRUPPEN[GRUPPEN.length-1];
 const zettelListe = () => Object.keys(ZETTEL).filter(id=>ARTIKEL[id]);
 const offeneZahl = () => zettelListe().filter(id=>!ZETTEL[id].ab).length;
@@ -1236,7 +1242,7 @@ function einstellungenZeichnen(){
   gruppenZeichnen();
   artikelListeZeichnen();
   const stand = nurLesen ? "ohne Verbindung" : "verbunden";
-  $("einFuss").textContent = "v0.12 · 05.10.2026 · "+stand;
+  $("einFuss").textContent = "v0.13 · 05.10.2026 · "+stand;
 }
 
 function gruppenZeichnen(){
