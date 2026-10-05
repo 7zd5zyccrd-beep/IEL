@@ -3,6 +3,9 @@
   Einkaufszettel
 
   Änderungsliste
+  v0.15 · 05.10.2026 · Statt Hinweisen nach jeder Aktion ein fester Rückgängig-Pfeil
+                      im Kopf; er nimmt die letzten Aktionen der Reihe nach zurück.
+                      Hinweise erscheinen nur noch bei Fehlern und Rückfragen.
   v0.14 · 05.10.2026 · Bildschirm bleibt an, solange der Zettel offen ist.
                       Abgehakte rutschen in ihrer Gruppe nach unten.
                       „Rückgängig“ nach Notieren, Abhaken, Entfernen, Leeren und
@@ -93,7 +96,6 @@
   --fuss-grund:rgba(241,242,238,.94);
   --hinweis-grund:#17201A;
   --hinweis-text:#F2F4F0;
-  --hinweis-knopf:#9ED3B5;
   --rand:14px;
   --sicher-oben:env(safe-area-inset-top);
   --sicher-unten:env(safe-area-inset-bottom);
@@ -110,7 +112,7 @@
     --gesperrt:#343B37; --gesperrt-text:#7D857F;
     --warnung:#E58A74;
     --fuss-grund:rgba(18,22,20,.92);
-    --hinweis-grund:#E6EAE6; --hinweis-text:#17201A; --hinweis-knopf:#2E6F4E;
+    --hinweis-grund:#E6EAE6; --hinweis-text:#17201A;
     color-scheme:dark;
   }
 }
@@ -167,6 +169,8 @@ button{background:none;border:0;padding:0;cursor:pointer}
 }
 .zahnrad{display:flex;align-items:center;color:var(--matt);padding:6px;margin:-6px}
 .zahnrad[data-auf="1"]{color:var(--akzent)}
+.rueck{display:flex;align-items:center;color:var(--akzent);padding:6px;margin:-6px 0}
+.rueck[disabled]{color:var(--gesperrt);cursor:default}
 .abschnitt{margin:26px 0 6px;font-size:13px;font-weight:650;color:var(--matt);letter-spacing:.2px}
 .abschnitt:first-child{margin-top:16px}
 .erklaerung{margin:0 0 10px;font-size:14px;color:var(--matt)}
@@ -293,14 +297,12 @@ button{background:none;border:0;padding:0;cursor:pointer}
 .ok{background:var(--akzent);color:#fff}
 .hinweis{
   position:fixed;left:16px;right:16px;bottom:calc(84px + var(--sicher-unten));z-index:50;
-  display:flex;align-items:center;justify-content:center;gap:14px;
   padding:12px 16px;border-radius:var(--rand);background:var(--hinweis-grund);color:var(--hinweis-text);
   font-size:15px;text-align:center;opacity:0;transform:translateY(6px);
   transition:opacity .16s,transform .16s;pointer-events:none;
 }
 .hinweis[data-auf="1"]{opacity:1;transform:none}
-.hinweis[data-auf="1"] .zurueck{pointer-events:auto}
-.zurueck{flex:none;margin:-10px -6px -10px 0;padding:10px 6px;color:var(--hinweis-knopf);font-weight:650}
+
 
 @media (min-width:700px){
   .kopf,.blatt,.fussleiste{max-width:680px;margin-left:auto;margin-right:auto}
@@ -321,7 +323,7 @@ button{background:none;border:0;padding:0;cursor:pointer}
          placeholder="Passwort" aria-label="Passwort">
   <p class="fehler" id="schlossFehler"></p>
   <button class="hauptknopf" id="anmelden">Anmelden</button>
-  <p class="schlossfuss">v0.14 · 05.10.2026</p>
+  <p class="schlossfuss">v0.15 · 05.10.2026</p>
 </div>
 
 <div id="app" hidden>
@@ -330,6 +332,12 @@ button{background:none;border:0;padding:0;cursor:pointer}
       <h1 id="kopftitel">Einkaufszettel</h1>
       <span class="kopfrechts">
         <span class="funk" id="funk" title="Verbindung"></span>
+        <button class="rueck" id="rueck" disabled aria-label="Nichts rückgängig zu machen">
+          <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="currentColor"
+               stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M9 14L4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/>
+          </svg>
+        </button>
         <button class="zahnrad" id="zahnrad" aria-label="Einstellungen">
           <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
             <g transform="translate(12,12)" fill="currentColor">
@@ -745,22 +753,33 @@ function nachSorteOrdnen(ids){
     ARTIKEL[a].n.localeCompare(ARTIKEL[b].n,"de"));
 }
 let hinweisUhr = null;
-/* Kurzer Hinweis unten; mit „zurueck“ gibt es einen Knopf „Rückgängig“ und etwas mehr Zeit */
-function melden(text, zurueck){
+/* Hinweise nur noch für Fehler und Rückfragen – gewöhnliche Aktionen laufen still */
+function melden(text){
   const h = $("hinweis");
-  h.innerHTML = "";
-  const t = document.createElement("span"); t.textContent = text;
-  h.appendChild(t);
-  if(zurueck){
-    const b = document.createElement("button");
-    b.className = "zurueck"; b.textContent = "Rückgängig";
-    b.onclick = ()=>{ clearTimeout(hinweisUhr); h.dataset.auf = "0"; zurueck(); };
-    h.appendChild(b);
-  }
-  h.dataset.auf = "1";
+  h.textContent = text; h.dataset.auf = "1";
   clearTimeout(hinweisUhr);
-  hinweisUhr = setTimeout(()=>{ h.dataset.auf = "0"; }, zurueck ? 4500 : 1600);
+  hinweisUhr = setTimeout(()=>{ h.dataset.auf = "0"; }, 1600);
 }
+
+/* Rückgängig: jede Aktion legt fest, wie sie sich zurücknimmt; der Pfeil im Kopf nimmt die letzte.
+   Der Stapel lebt nur im Gerät, bis die App neu geladen wird. */
+const RUECK = [];
+function merken(was, zurueck){
+  RUECK.push({was, zurueck});
+  if(RUECK.length > 30) RUECK.shift();
+  rueckZeigen();
+}
+function rueckZeigen(){
+  const b = $("rueck"), letzte = RUECK[RUECK.length-1];
+  b.disabled = !letzte;
+  b.setAttribute("aria-label", letzte ? "Rückgängig: "+letzte.was : "Nichts rückgängig zu machen");
+  b.title = letzte ? "Rückgängig: "+letzte.was : "";
+}
+$("rueck").onclick = ()=>{
+  if(!RUECK.length || schreibsperre()) return;
+  RUECK.pop().zurueck();
+  rueckZeigen();
+};
 
 /* Eingabe im Suchfeld: Menge und Einheit vorn oder hinten, der Rest ist der Name.
    Ergibt {name, menge, einheit}; menge/einheit sind null, wenn keine Zahl dabei ist. */
@@ -1147,7 +1166,7 @@ function zettelZeichnen(){
         if(schreibsperre()) return;
         const vorher = !!p.ab;
         aendern("zettel/"+id, {ab: !vorher});
-        melden(a.n+(vorher ? " wieder offen" : " abgehakt"), ()=>aendern("zettel/"+id, {ab: vorher}));
+        merken(a.n+(vorher ? " wieder öffnen" : " abhaken"), ()=>aendern("zettel/"+id, {ab: vorher}));
       };
 
       const menge = document.createElement("button");
@@ -1197,7 +1216,7 @@ function aufDenZettel(id){
   if(schreibsperre()) return;
   const a = ARTIKEL[id];
   setzen("zettel/"+id, {menge:a.m, einheit:a.e, ab:false, t:Date.now()});
-  melden(a.n+", "+mengeText(a.m,a.e)+" notiert", ()=>entfernen("zettel/"+id));
+  merken(a.n+" notieren", ()=>entfernen("zettel/"+id));
 }
 /* Aus dem Suchfeld mit Menge („2 Kästen Bier“): direkt notieren, auch als Vorschlag fürs nächste Mal */
 function mitMengeNotieren(id, eingabe){
@@ -1208,10 +1227,10 @@ function mitMengeNotieren(id, eingabe){
   if(p){
     const alt = {menge:p.menge, einheit:p.einheit};
     aendern("zettel/"+id, {menge:eingabe.menge, einheit});
-    melden(a.n+" jetzt "+mengeText(eingabe.menge,einheit), ()=>aendern("zettel/"+id, alt));
+    merken(a.n+": Menge ändern", ()=>aendern("zettel/"+id, alt));
   }else{
     setzen("zettel/"+id, {menge:eingabe.menge, einheit, ab:false, t:Date.now()});
-    melden(a.n+", "+mengeText(eingabe.menge,einheit)+" notiert", ()=>entfernen("zettel/"+id));
+    merken(a.n+" notieren", ()=>entfernen("zettel/"+id));
   }
   $("suche").value = ""; alleZeigen = false; reihenfolgeVergessen(); kachelnZeichnen();
 }
@@ -1278,6 +1297,9 @@ $("mengeMinus").onclick = ()=>mengeSchreiben(Math.max(schritt(), mengeLesen()-sc
 $("mengeOk").onclick = ()=>{
   const w = mengeLesen(), p = ZETTEL[mengeId];
   const notiz = $("mengeNotiz").value.trim() || null;     // gilt nur für diesen Einkauf
+  const id = mengeId;
+  merken(ARTIKEL[id].n+(p ? ": Menge ändern" : " notieren"),
+         ()=> p ? setzen("zettel/"+id, p) : entfernen("zettel/"+id));
   aendern("artikel/"+mengeId, {m:w, e:mengeEinheit});     // Vorschlag fürs nächste Mal
   if(p) aendern("zettel/"+mengeId, {menge:w, einheit:mengeEinheit, notiz});
   else  setzen("zettel/"+mengeId, {menge:w, einheit:mengeEinheit, notiz, ab:false, t:Date.now()});
@@ -1288,7 +1310,7 @@ $("mengeWeg").onclick = ()=>{
   const id = mengeId, name = ARTIKEL[id].n, alt = ZETTEL[id];
   entfernen("zettel/"+id);
   blattSchliessen();
-  melden(name+" vom Zettel", ()=>setzen("zettel/"+id, alt));
+  merken(name+" vom Zettel nehmen", ()=>setzen("zettel/"+id, alt));
 };
 
 let neuVorgabe = null;   // Menge/Einheit aus dem Suchfeld („2 Kästen Limo“)
@@ -1328,10 +1350,11 @@ $("neuOk").onclick = ()=>{
   }
   const menge = neuVorgabe ? neuVorgabe.menge : (schon ? ARTIKEL[id].m : standardMenge(neuEinheit));
   const einheit = schon ? ((neuVorgabe && neuVorgabe.einheit) || ARTIKEL[id].e) : neuEinheit;
-  if(!ZETTEL[id]) setzen("zettel/"+id, {menge:menge, einheit:einheit, ab:false, t:Date.now()});
+  const warSchonDrauf = !!ZETTEL[id];
+  if(!warSchonDrauf) setzen("zettel/"+id, {menge:menge, einheit:einheit, ab:false, t:Date.now()});
   $("suche").value = ""; alleZeigen = false;
   blattSchliessen();
-  melden(schon ? name+" gab es schon – notiert" : name+" angelegt und notiert");
+  if(!warSchonDrauf) merken(name+" notieren", ()=>entfernen("zettel/"+id));
 };
 
 /* --- Einkauf abschließen --- */
@@ -1412,7 +1435,7 @@ $("frageJa").onclick = async ()=>{
   reihenfolgeVergessen();
   try{
     await F.update(F.ref(F.db), stapel);
-    melden(fertig.length+" Artikel eingekauft"+(gestrichen ? ", "+gestrichen+" gestrichen" : ""), async ()=>{
+    merken("Einkauf abschließen", async ()=>{
       try{ await F.update(F.ref(F.db), zurueck); reihenfolgeVergessen(); }
       catch(f){ melden("Konnte nicht gespeichert werden."); }
     });
@@ -1448,7 +1471,7 @@ function einstellungenZeichnen(){
   gruppenZeichnen();
   artikelListeZeichnen();
   const stand = nurLesen ? "ohne Verbindung" : "verbunden";
-  $("einFuss").textContent = "v0.14 · 05.10.2026 · "+stand;
+  $("einFuss").textContent = "v0.15 · 05.10.2026 · "+stand;
 }
 
 function gruppenZeichnen(){
@@ -1488,7 +1511,9 @@ function gruppeSchieben(i,richtung){
   const folge = gruppenGeordnet().map(g=>g.id);
   const j = i+richtung;
   if(j<0 || j>=folge.length) return;
+  const alt = folge.slice();
   const merk = folge[i]; folge[i] = folge[j]; folge[j] = merk;
+  merken("Gruppe verschieben", ()=>{ GRUPPENFOLGE = alt; setzen("einstellungen/gruppen", alt); zeichnen(); });
   GRUPPENFOLGE = folge;
   gruppenZeichnen();
   setzen("einstellungen/gruppen", folge);
@@ -1583,17 +1608,24 @@ $("artOk").onclick = ()=>{
   const name = $("artName").value.trim();
   if(!name){ melden("Der Name fehlt noch."); return; }
   // Die Kennung bleibt, wie sie ist – daran hängen Verlauf, Rhythmus und Saison
-  aendern("artikel/"+artId, {n:name, g:artGruppe, e:artEinheit});
+  const id = artId, a = ARTIKEL[id], alt = {n:a.n, g:a.g, e:a.e};
+  aendern("artikel/"+id, {n:name, g:artGruppe, e:artEinheit});
+  merken(alt.n+" ändern", ()=>aendern("artikel/"+id, alt));
   blattSchliessen();
-  melden("Übernommen");
+
 };
 $("artAus").onclick = ()=>{
   const a = ARTIKEL[artId], neu = !a.aus;
+  const altZettel = ZETTEL[artId], id = artId;   // vor dem Schreiben merken, die Datenbank meldet sofort zurück
   aendern("artikel/"+artId, {aus:neu});
   if(neu) entfernen("zettel/"+artId);
   blattSchliessen();
   reihenfolgeVergessen();
-  melden(neu ? a.n+" ausgeblendet" : a.n+" wieder da");
+  merken(a.n+(neu ? " ausblenden" : " wieder anzeigen"), ()=>{
+    aendern("artikel/"+id, {aus:!neu});
+    if(altZettel) setzen("zettel/"+id, altZettel);
+    reihenfolgeVergessen();
+  });
 };
 
 /* --- Zettel leeren --- */
@@ -1609,7 +1641,7 @@ $("leerenJa").onclick = ()=>{
   const alt = ZETTEL;
   entfernen("zettel");
   blattSchliessen();
-  melden("Zettel geleert", ()=>setzen("zettel", alt));
+  merken("Zettel leeren", ()=>setzen("zettel", alt));
 };
 
 $("zahnrad").onclick = ()=>{ ansicht==="ein" ? einstellungenSchliessen() : einstellungenOeffnen(); };
