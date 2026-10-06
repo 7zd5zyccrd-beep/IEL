@@ -3,6 +3,10 @@
   Einkaufszettel
 
   Änderungsliste
+  v0.19 · 06.10.2026 · Kein kurzes Aufblitzen der Passwortmaske mehr beim Start:
+                      Ein angemeldetes Gerät zeigt sofort den zuletzt bekannten
+                      Stand, das Schloss erscheint nur noch, wenn wirklich keine
+                      Anmeldung besteht.
   v0.18 · 05.10.2026 · Mehreres auf einmal ins Suchfeld („Milch, Brot, 2 Kästen
                       Bier“ oder „… und …“). Zahlwörter zum Diktieren („zwei
                       Kästen Bier“, „ein halbes Kilo Hack“). Die App lernt aus der
@@ -340,7 +344,7 @@ button{background:none;border:0;padding:0;cursor:pointer}
 <body>
 
 <!-- Schlossbildschirm -->
-<div class="schloss" id="schloss">
+<div class="schloss" id="schloss" hidden>
   <h1>Einkaufszettel</h1>
   <p>Haushalt und Passwort eingeben. Das Gerät bleibt danach angemeldet, bis du es sperrst.</p>
   <input id="haushalt" type="text" inputmode="text" autocomplete="username" autocapitalize="none"
@@ -349,7 +353,7 @@ button{background:none;border:0;padding:0;cursor:pointer}
          placeholder="Passwort" aria-label="Passwort">
   <p class="fehler" id="schlossFehler"></p>
   <button class="hauptknopf" id="anmelden">Anmelden</button>
-  <p class="schlossfuss">v0.18 · 05.10.2026</p>
+  <p class="schlossfuss">v0.19 · 06.10.2026</p>
 </div>
 
 <div id="app" hidden>
@@ -1700,7 +1704,7 @@ function einstellungenZeichnen(){
   wegVorschlagZeichnen();
   artikelListeZeichnen();
   const stand = nurLesen ? "ohne Verbindung" : "verbunden";
-  $("einFuss").textContent = "v0.18 · 05.10.2026 · "+stand;
+  $("einFuss").textContent = "v0.19 · 06.10.2026 · "+stand;
 }
 
 function gruppenZeichnen(){
@@ -2028,6 +2032,7 @@ function fehlerText(code){
   return "Anmeldung nicht möglich ("+code+").";
 }
 function appZeigen(){
+  if(!$("app").hidden) return;   // läuft schon (aus der Kopie im Gerät), Reiter nicht zurücksetzen
   $("schloss").hidden = true;
   $("app").hidden = false;
   reiterSetzen("vor");
@@ -2080,6 +2085,16 @@ function lauschen(dbMod, db){
 }
 
 async function start(){
+  // Angemeldetes Gerät: sofort den letzten Stand zeigen, statt bis zur Antwort
+  // von Firebase die Passwortmaske stehen zu lassen. Das Schloss kommt erst,
+  // wenn Firebase wirklich keine Anmeldung meldet.
+  if(merkerGesetzt() && spiegelLesen()){
+    appZeigen();
+    $("funk").dataset.aus = "1";
+  }else{
+    schlossZeigen();
+  }
+
   let mod;
   try{
     mod = await Promise.all([
@@ -2089,8 +2104,7 @@ async function start(){
     ]);
   }catch(f){
     nurLesen = true;
-    if(merkerGesetzt() && spiegelLesen()){
-      appZeigen();
+    if(!$("app").hidden){
       streifen("Ohne Verbindung. Du siehst den zuletzt bekannten Stand, Änderungen sind gerade nicht möglich.");
       $("funk").dataset.aus = "1";
     }else{
