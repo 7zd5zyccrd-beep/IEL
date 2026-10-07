@@ -3,6 +3,9 @@
   Einkaufszettel
 
   Änderungsliste
+  v0.20 · 07.10.2026 · Der Hinweis „Keine Verbindung“ erscheint nicht mehr beim
+                      Start, sondern nur noch, wenn Änderungen gemacht wurden, die
+                      wegen fehlender Verbindung noch nicht gespeichert sind.
   v0.19 · 06.10.2026 · Kein kurzes Aufblitzen der Passwortmaske mehr beim Start:
                       Ein angemeldetes Gerät zeigt sofort den zuletzt bekannten
                       Stand, das Schloss erscheint nur noch, wenn wirklich keine
@@ -353,7 +356,7 @@ button{background:none;border:0;padding:0;cursor:pointer}
          placeholder="Passwort" aria-label="Passwort">
   <p class="fehler" id="schlossFehler"></p>
   <button class="hauptknopf" id="anmelden">Anmelden</button>
-  <p class="schlossfuss">v0.19 · 06.10.2026</p>
+  <p class="schlossfuss">v0.20 · 07.10.2026</p>
 </div>
 
 <div id="app" hidden>
@@ -949,8 +952,22 @@ function streifen(text){
 }
 
 /* ============ Schreiben in die Datenbank ============ */
+// Der Hinweis „Keine Verbindung“ kommt nur, wenn Änderungen tatsächlich warten.
+let verbunden = false, offeneSchreibvorgaenge = 0, wartehinweis = false;
+function wartehinweisPruefen(){
+  const zeigen = !verbunden && offeneSchreibvorgaenge > 0;
+  if(zeigen === wartehinweis) return;
+  wartehinweis = zeigen;
+  streifen(zeigen ? "Keine Verbindung – Änderungen werden nachgeholt, sobald das Netz wieder da ist." : "");
+}
+function mitgezaehlt(schreiben){
+  return (...a)=>{
+    offeneSchreibvorgaenge++; wartehinweisPruefen();
+    return schreiben(...a).finally(()=>{ offeneSchreibvorgaenge--; wartehinweisPruefen(); });
+  };
+}
 function schreibsperre(){
-  if(nurLesen || !F){ melden("Ohne Verbindung nicht änderbar."); return true; }
+  if(nurLesen || !F || !BASIS){ melden("Ohne Verbindung nicht änderbar."); return true; }
   return false;
 }
 function pfad(p){ return F.ref(F.db, BASIS + p); }
@@ -1704,7 +1721,7 @@ function einstellungenZeichnen(){
   wegVorschlagZeichnen();
   artikelListeZeichnen();
   const stand = nurLesen ? "ohne Verbindung" : "verbunden";
-  $("einFuss").textContent = "v0.19 · 06.10.2026 · "+stand;
+  $("einFuss").textContent = "v0.20 · 07.10.2026 · "+stand;
 }
 
 function gruppenZeichnen(){
@@ -2078,9 +2095,9 @@ function lauschen(dbMod, db){
   });
 
   dbMod.onValue(dbMod.ref(db,".info/connected"), s=>{
-    const da = s.val()===true;
-    $("funk").dataset.aus = da ? "0" : "1";
-    streifen(da ? "" : "Keine Verbindung – Änderungen werden nachgeholt, sobald das Netz wieder da ist.");
+    verbunden = s.val()===true;
+    $("funk").dataset.aus = verbunden ? "0" : "1";
+    wartehinweisPruefen();
   });
 }
 
@@ -2104,10 +2121,7 @@ async function start(){
     ]);
   }catch(f){
     nurLesen = true;
-    if(!$("app").hidden){
-      streifen("Ohne Verbindung. Du siehst den zuletzt bekannten Stand, Änderungen sind gerade nicht möglich.");
-      $("funk").dataset.aus = "1";
-    }else{
+    if($("app").hidden){
       $("schlossFehler").textContent = "Keine Verbindung. Beim ersten Start auf einem Gerät ist Netz nötig.";
     }
     return;
@@ -2117,7 +2131,7 @@ async function start(){
   const app = appMod.initializeApp(FB);
   const auth = authMod.getAuth(app);
   const db = dbMod.getDatabase(app);
-  F = {db, ref:dbMod.ref, set:dbMod.set, update:dbMod.update, remove:dbMod.remove};
+  F = {db, ref:dbMod.ref, set:mitgezaehlt(dbMod.set), update:mitgezaehlt(dbMod.update), remove:mitgezaehlt(dbMod.remove)};
 
   try{ await authMod.setPersistence(auth, authMod.browserLocalPersistence); }catch(f){}
 
